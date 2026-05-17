@@ -6,6 +6,30 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from num2words import num2words
 
+WORK_DICT = {
+    "1ф": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии однофазного",
+    "3ф ПР": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного непосредственного (прямого) включения",
+    "3ф ПК": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного трансформаторного включения"
+}
+EQUIP_DICT = {
+    "1ф": "Счетчик электрической энергии однофазный, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM",
+    "3ф ПР": "Счетчик электрической энергии трехфазный непосредственного (прямого) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.749.OG.QYUVLFZ NB02 SPds",
+    "3ф ПК": "Счетчик электрической энергии трехфазный трансформаторного (полукосвенного) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.543.OAG.SYUVLFZ NB02 SPds"
+}
+
+
+def clean_price_string(price_str):
+    """Очистка строки с ценой для конвертации в float"""
+    price_str = str(price_str)
+    price_str = price_str.replace('\xa0', ' ')  # Заменяем неразрывные пробелы
+    price_str = price_str.replace(' ', '')  # Удаляем все пробелы
+    price_str = price_str.replace(',', '.')  # Заменяем запятую на точку
+    return float(price_str)
+
+def price_to_show(pr):
+    price_show = format(float(pr), ",.2f").replace(",", " ")
+    return price_show
+
 
 def sum_to_words(amount):
     rub = int(amount)
@@ -17,8 +41,14 @@ def sum_to_words(amount):
     return f"{rub_text} руб. {kop_text} коп."
 
 
+def create_application_doc2(num, date, table1_rows, table1_data, table2_data):
+    # Извлекаем данные из table2_data (без заголовков и итогов)
+    # Предполагаемая структура: ['Работы:', данные_работ, 'Оборудование:', данные_оборудования, 'ИТОГО:', 'НДС:']
+    table2 = table2_data[2:-2]  # Убираем первые 2 и последние 2 элемента
+    mid_point = len(table2) // 2
+    table2_work = table2[:mid_point]
+    table2_equip = table2[mid_point:]
 
-def create_application_doc2(num, date, table1_rows, table1_data, price1):
     doc = Document()
 
     # Настройка стилей
@@ -51,7 +81,7 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
     cells = header_table.rows[0].cells
     cells[0].text = 'г. Новосибирск'
     cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
-    cells[1].text = f'«30» апреля 2026 г.'
+    cells[1].text = f'{date}'
     cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
     cells[0].width = Cm(9)
     cells[1].width = Cm(9)
@@ -145,6 +175,15 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
 
     doc.add_paragraph()
 
+    type_counter = {"1ф": 0, "3ф ПР": 0, "3ф ПК": 0}
+    for row in table1_data:
+        if "1ф" in row[2]:
+            type_counter["1ф"] += 1
+        if "ПР" in row[2]:
+            type_counter["3ф ПР"] += 1
+        if "ПК" in row[2]:
+            type_counter["3ф ПК"] += 1
+
     # Пункт 3 - Таблица работ
     para3 = doc.add_paragraph()
     para3.paragraph_format.first_line_indent = Cm(1.25)
@@ -152,15 +191,19 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
     run3.font.name = 'Times New Roman'
     run3.font.size = Pt(12)
 
+    # Подсчет количества типов работ, которые есть
+    types_rows = sum(1 for typ in WORK_DICT.keys() if type_counter[typ] > 0)
+    # Каждый тип занимает 2 строки (работа + оборудование)
+    total_data_rows = types_rows * 2
+    # +2 строки для заголовков "Работы:" и "Оборудование:", +2 для итогов
+    total_rows = 1 + 2 + total_data_rows + 2  # 1 заголовок + 2 подзаголовка + данные + 2 итога
+
     # Таблица работ
-    work_table = doc.add_table(rows=7, cols=6)
+    work_table = doc.add_table(rows=total_rows, cols=6)
     work_table.style = 'Table Grid'
     work_table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    # Количество объектов (без строки заголовка)
-    objects_count = table1_rows - 1
-
-    # Заголовки
+    # Заголовки (строка 0)
     work_headers = ['№ п/п', 'Наименование работ', 'Единица измерения',
                     'Объем выполняемых работ', 'Цена работ за единицу, руб. с НДС',
                     'Стоимость работ, руб. с НДС']
@@ -175,7 +218,7 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
         run.font.name = 'Times New Roman'
         run.font.size = Pt(8)
 
-    # Объединение ячеек для заголовка "Работы:"
+    # Заголовок "Работы:" (строка 1)
     work_table.rows[1].cells[0].merge(work_table.rows[1].cells[5])
     cell_work = work_table.rows[1].cells[0]
     cell_work.text = ''
@@ -185,24 +228,44 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
     run.font.name = 'Times New Roman'
     run.font.size = Pt(9)
 
-    # Данные работ
-    work_data = ['1',
-                 'Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного непосредственного (прямого) включения',
-                 'шт', str(objects_count), f'{price1:.2f}', f'{price1 * objects_count:.2f}']
+    total_cost = []
+    current_row = 2  # Начинаем со строки 2
 
-    for j, cell_text in enumerate(work_data):
-        cell = work_table.rows[2].cells[j]
-        cell.text = ''
-        p = cell.paragraphs[0]
-        run = p.add_run(str(cell_text))
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(9)
-        if j in [0, 2, 3, 4, 5]:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Заполняем данные работ
+    table2_p = 1
+    for typ in WORK_DICT.keys():
+        if type_counter[typ] > 0:
+            if table2_work:  # Проверяем, есть ли данные
+                row_data = table2_work.pop(0) if table2_work else ['', '', '', '', '0', '']
+                table2_num = clean_price_string(str(row_data[4]))
+                work_cost = table2_num
+                total_cost.append(type_counter[typ] * table2_num)
 
-    # Объединение ячеек для заголовка "Оборудование:"
-    work_table.rows[3].cells[0].merge(work_table.rows[3].cells[5])
-    cell_eq = work_table.rows[3].cells[0]
+                work_values = [
+                    str(table2_p),
+                    WORK_DICT[typ],
+                    str(row_data[2]),
+                    str(type_counter[typ]),
+                    price_to_show(table2_num),
+                    price_to_show(type_counter[typ] * table2_num)
+                ]
+
+                for j, value in enumerate(work_values):
+                    cell = work_table.rows[current_row].cells[j]
+                    cell.text = ''
+                    p = cell.paragraphs[0]
+                    run = p.add_run(value)
+                    run.font.name = 'Times New Roman'
+                    run.font.size = Pt(9)
+                    if j in [0, 2, 3, 4, 5]:
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                current_row += 1
+                table2_p += 1
+
+    # Заголовок "Оборудование:"
+    work_table.rows[current_row].cells[0].merge(work_table.rows[current_row].cells[5])
+    cell_eq = work_table.rows[current_row].cells[0]
     cell_eq.text = ''
     p = cell_eq.paragraphs[0]
     run = p.add_run('Оборудование:')
@@ -210,28 +273,44 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
     run.font.name = 'Times New Roman'
     run.font.size = Pt(9)
 
-    # Данные оборудования
-    CONST_EQUIP = 12352.94
-    eq_data = ['2',
-               'Счетчик электрической энергии трехфазный непосредственного (прямого) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., Энергомера CE307 R34.749',
-               'шт', str(objects_count), f'{CONST_EQUIP:.2f}', f'{CONST_EQUIP * objects_count:.2f}']
+    current_row += 1
 
-    for j, cell_text in enumerate(eq_data):
-        cell = work_table.rows[4].cells[j]
-        cell.text = ''
-        p = cell.paragraphs[0]
-        run = p.add_run(str(cell_text))
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(9)
-        if j in [0, 2, 3, 4, 5]:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Заполняем данные оборудования
+    for typ in EQUIP_DICT.keys():
+        if type_counter[typ] > 0:
+            if table2_equip:  # Проверяем, есть ли данные
+                row_data = table2_equip.pop(0) if table2_equip else ['', '', '', '', '0', '']
+                table2_num = clean_price_string(str(row_data[4]))
+                equip_cost = table2_num
+                total_cost.append(type_counter[typ] * table2_num)
+
+                equip_values = [
+                    str(table2_p),
+                    EQUIP_DICT[typ],
+                    str(row_data[2]),
+                    str(type_counter[typ]),
+                    price_to_show(table2_num),
+                    price_to_show(type_counter[typ] * table2_num)
+                ]
+
+                for j, value in enumerate(equip_values):
+                    cell = work_table.rows[current_row].cells[j]
+                    cell.text = ''
+                    p = cell.paragraphs[0]
+                    run = p.add_run(value)
+                    run.font.name = 'Times New Roman'
+                    run.font.size = Pt(9)
+                    if j in [0, 2, 3, 4, 5]:
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                current_row += 1
+                table2_p += 1
 
     # Итоговая строка
-    total_cost = (price1 + CONST_EQUIP) * objects_count
-    nds_amount = total_cost * 0.22
+    nds_amount = (sum(total_cost)/1.22 - sum(total_cost)) * (-1)
 
-    work_table.rows[5].cells[0].merge(work_table.rows[5].cells[4])
-    cell_total_label = work_table.rows[5].cells[0]
+    work_table.rows[current_row].cells[0].merge(work_table.rows[current_row].cells[4])
+    cell_total_label = work_table.rows[current_row].cells[0]
     cell_total_label.text = ''
     p = cell_total_label.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -240,18 +319,20 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
     run.font.name = 'Times New Roman'
     run.font.size = Pt(10)
 
-    cell_total_value = work_table.rows[5].cells[5]
+    cell_total_value = work_table.rows[current_row].cells[5]
     cell_total_value.text = ''
     p = cell_total_value.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(f'{total_cost:.2f}')
+    run = p.add_run(price_to_show(sum(total_cost)))
     run.bold = True
     run.font.name = 'Times New Roman'
     run.font.size = Pt(10)
 
-    # Строка НДС (исправлены индексы)
-    work_table.rows[6].cells[0].merge(work_table.rows[6].cells[4])
-    cell_nds_label = work_table.rows[6].cells[0]
+    current_row += 1
+
+    # Строка НДС
+    work_table.rows[current_row].cells[0].merge(work_table.rows[current_row].cells[4])
+    cell_nds_label = work_table.rows[current_row].cells[0]
     cell_nds_label.text = ''
     p = cell_nds_label.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -259,11 +340,11 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
     run.font.name = 'Times New Roman'
     run.font.size = Pt(9)
 
-    cell_nds_value = work_table.rows[6].cells[5]
+    cell_nds_value = work_table.rows[current_row].cells[5]
     cell_nds_value.text = ''
     p = cell_nds_value.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(f'{nds_amount:.2f}')
+    run = p.add_run(price_to_show(nds_amount))
     run.font.name = 'Times New Roman'
     run.font.size = Pt(9)
 
@@ -274,15 +355,27 @@ def create_application_doc2(num, date, table1_rows, table1_data, price1):
             for idx, width in enumerate(work_widths):
                 row.cells[idx].width = width
 
-    doc.add_paragraph()
+    # Сноска
+    footnote = doc.add_paragraph()
+    footnote_run = footnote.add_run(
+        '¹Размер НДС определяется по ставке, установленной п. 3 ст. 164 НК РФ.')
+    footnote_run.font.size = Pt(11)
+    footnote_run.font.name = 'Times New Roman'
+
+    # Пункт 3
+    para3 = doc.add_paragraph()
+    para3.paragraph_format.first_line_indent = Cm(1.25)
+    run3 = para3.add_run('3. Требования к составу материалов и оборудования: Договором предусмотрено давальческие материалы/оборудование в составе (Заполняется при наличии давальческих материалов/оборудования):')
+    run3.font.name = 'Times New Roman'
+    run3.font.size = Pt(12)
 
     # Пункт 4
     para4 = doc.add_paragraph()
     para4.paragraph_format.first_line_indent = Cm(1.25)
     run4 = para4.add_run(
-        f'4. Всего выполнено работ на сумму: {total_cost:.2f} руб. '
-        f'({sum_to_words(total_cost)}), '
-        f'в том числе НДС 22% - {nds_amount:.2f} руб. '
+        f'4. Всего выполнено работ на сумму: {price_to_show(sum(total_cost))} руб. '
+        f'({sum_to_words(sum(total_cost))}), '
+        f'в том числе НДС 22% - {price_to_show(nds_amount)} руб. '
         f'({sum_to_words(nds_amount)}).'
     )
     run4.font.name = 'Times New Roman'

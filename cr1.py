@@ -4,27 +4,46 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
-import os
 from num2words import num2words
+
+WORK_DICT = {
+    "1ф": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии однофазного",
+    "3ф ПР": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного непосредственного (прямого) включения",
+    "3ф ПК": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного трансформаторного включения"
+}
+EQUIP_DICT = {
+    "1ф": "Счетчик электрической энергии однофазный, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM",
+    "3ф ПР": "Счетчик электрической энергии трехфазный непосредственного (прямого) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.749.OG.QYUVLFZ NB02 SPds",
+    "3ф ПК": "Счетчик электрической энергии трехфазный трансформаторного (полукосвенного) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.543.OAG.SYUVLFZ NB02 SPds"
+}
+
+
+def price_to_show(pr):
+    price_show = format(float(pr), ",.2f").replace(",", " ")
+    return price_show
 
 
 def sum_to_words(amount):
     rub = int(amount)
     kop = int(round((amount - rub) * 100))
 
-    # Переводим рубли (учитываем мужской род)
     rub_text = num2words(rub, lang='ru')
-    # Переводим копейки (учитываем женский род: "одна", "две")
     kop_text = num2words(kop, lang='ru')
 
-    # Если нужно просто добавить слова "руб." и "коп." к числам:
     return f"{rub_text} руб. {kop_text} коп."
 
 
+def clean_price_string(price_str):
+    """Очистка строки с ценой для конвертации в float"""
+    price_str = str(price_str)
+    price_str = price_str.replace('\xa0', ' ')  # Заменяем неразрывные пробелы
+    price_str = price_str.replace(' ', '')  # Удаляем все пробелы
+    price_str = price_str.replace(',', '.')  # Заменяем запятую на точку
+    return float(price_str)
+
+
 def add_formatted_paragraph(doc, text, bold=False, size=11, alignment=None, font_name='Times New Roman'):
-    """
-    Добавление форматированного параграфа
-    """
+    """Добавление форматированного параграфа"""
     para = doc.add_paragraph()
     if alignment is not None:
         para.alignment = alignment
@@ -35,9 +54,9 @@ def add_formatted_paragraph(doc, text, bold=False, size=11, alignment=None, font
     return para
 
 
-def create_application_doc(num, date, table1_rows, table1_data, price1, date_work):
+def create_application_doc(num, date, table1_rows, table1_data, table2_data, date_work):
     """Создание документа заявки"""
-    price1 = float(price1)
+
     doc = Document()
 
     # Настройка стилей документа
@@ -117,16 +136,32 @@ def create_application_doc(num, date, table1_rows, table1_data, price1, date_wor
 
     doc.add_paragraph()
 
+    # Подсчет типов счетчиков
+    type_counter = {"1ф": 0, "3ф ПР": 0, "3ф ПК": 0}
+    for row in table1_data:
+        if "1ф" in row[2]:
+            type_counter["1ф"] += 1
+        if "ПР" in row[2]:
+            type_counter["3ф ПР"] += 1
+        if "ПК" in row[2]:
+            type_counter["3ф ПК"] += 1
+
+    # Извлекаем данные из table2_data
+    table2 = table2_data[2:-2]  # Убираем первые 2 и последние 2 элемента
+    mid_point = len(table2) // 2
+    table2_work = table2[:mid_point]  # Данные работ
+    table2_equip = table2[mid_point:]  # Данные оборудования
+
     # Раздел 2: Перечень работ
     add_formatted_paragraph(doc, '\t2. Перечень работ:', size=11)
 
-    # Таблица перечня работ
-    table2 = doc.add_table(rows=4, cols=6)
+    # Создаем таблицу перечня работ (начинаем с 2 строк: заголовок + "Работы:")
+    table2 = doc.add_table(rows=2, cols=6)
     table2.style = 'Table Grid'
     table2.alignment = WD_TABLE_ALIGNMENT.CENTER
 
     # Заголовки таблицы 2
-    headers2 = ['№ п/п', 'Наименование работ', 'Единца измерения', 'Объем выполняемых работ',
+    headers2 = ['№ п/п', 'Наименование работ', 'Единица измерения', 'Объем выполняемых работ',
                 'Цена работ за единицу, руб. без НДС¹', 'Стоимость работ, руб. без НДС¹']
 
     for i, header in enumerate(headers2):
@@ -149,23 +184,43 @@ def create_application_doc(num, date, table1_rows, table1_data, price1, date_wor
     run.font.size = Pt(9)
     run.font.name = 'Times New Roman'
 
-    # Строка с данными работ
-    work_data = ['1',
-                 'Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного непосредственного (прямого) включения',
-                 'шт.', f'{table1_rows}', f'{price1}', f'{price1*table1_rows}']
+    # Добавляем строки с данными работ
+    table2_p = 1
+    total_cost = []
 
-    for col_idx, cell_data in enumerate(work_data):
-        cell = table2.rows[2].cells[col_idx]
-        cell.text = ''
-        para = cell.paragraphs[0]
-        run = para.add_run(str(cell_data))
-        run.font.size = Pt(11)
-        run.font.name = 'Times New Roman'
-        if col_idx in [0, 2, 3, 4, 5]:
-            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for typ in WORK_DICT.keys():
+        if type_counter[typ] > 0:
+            if table2_work:
+                row_data = table2_work.pop(0)
+                price_per_unit = clean_price_string(row_data[4])
 
-    # Строка "Оборудование:"
-    merged_cell2 = table2.rows[3].cells[0].merge(table2.rows[3].cells[5])
+                total_cost.append(type_counter[typ] * price_per_unit)
+
+                work_values = [
+                    str(table2_p),
+                    WORK_DICT[typ],
+                    str(row_data[2]),
+                    str(type_counter[typ]),
+                    price_to_show(price_per_unit),
+                    price_to_show(type_counter[typ] * price_per_unit)
+                ]
+
+                row = table2.add_row()
+                for col_idx, cell_data in enumerate(work_values):
+                    cell = row.cells[col_idx]
+                    cell.text = ''
+                    para = cell.paragraphs[0]
+                    run = para.add_run(str(cell_data))
+                    run.font.size = Pt(11)
+                    run.font.name = 'Times New Roman'
+                    if col_idx in [0, 2, 3, 4, 5]:
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                table2_p += 1
+
+    # Добавляем строку "Оборудование:"
+    row_eq_header = table2.add_row()
+    merged_cell2 = row_eq_header.cells[0].merge(row_eq_header.cells[5])
     merged_cell2.text = ''
     para = merged_cell2.paragraphs[0]
     run = para.add_run('Оборудование:')
@@ -173,19 +228,37 @@ def create_application_doc(num, date, table1_rows, table1_data, price1, date_wor
     run.font.size = Pt(9)
     run.font.name = 'Times New Roman'
 
-    # Добавление строк для оборудования (Энергомера)
-    row_eq = table2.add_row()
-    eq_data = ['2', 'Энергомера CE307 R34.749.OG.QYUVLFZ NB02 SPds', 'шт.', f'{table1_rows}', '-', '-']
+    # Добавляем строки с данными оборудования
+    for typ in EQUIP_DICT.keys():
+        if type_counter[typ] > 0:
+            if table2_equip:
+                row_data = table2_equip.pop(0)
+                price_per_unit = 0
+                total_cost.append(type_counter[typ] * price_per_unit)
 
-    for col_idx, cell_data in enumerate(eq_data):
-        cell = row_eq.cells[col_idx]
-        cell.text = ''
-        para = cell.paragraphs[0]
-        run = para.add_run(str(cell_data))
-        run.font.size = Pt(11)
-        run.font.name = 'Times New Roman'
-        if col_idx in [0, 2, 3, 4, 5]:
-            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                equip_values = [
+                    str(table2_p),
+                    EQUIP_DICT[typ],
+                    str(row_data[2]),
+                    str(type_counter[typ]),
+                    price_to_show(price_per_unit),
+                    price_to_show(type_counter[typ] * price_per_unit)
+                ]
+
+                row = table2.add_row()
+                for col_idx, cell_data in enumerate(equip_values):
+                    cell = row.cells[col_idx]
+                    cell.text = ''
+                    para = cell.paragraphs[0]
+                    run = para.add_run(str(cell_data))
+                    run.font.size = Pt(11)
+                    run.font.name = 'Times New Roman'
+                    if col_idx in [0, 2, 3, 4, 5]:
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                table2_p += 1
+
+    total_sum = sum(total_cost)
 
     # Итоговая строка
     total_row = table2.add_row()
@@ -200,29 +273,36 @@ def create_application_doc(num, date, table1_rows, table1_data, price1, date_wor
     total_cell = total_row.cells[5]
     total_cell.text = ''
     para = total_cell.paragraphs[0]
-    run = para.add_run(f'{price1*table1_rows}')
+    run = para.add_run(price_to_show(total_sum))
     run.bold = False
     run.font.size = Pt(11)
     run.font.name = 'Times New Roman'
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
+    # Установка ширины столбцов
     widths = [Cm(0.99), Cm(8), Cm(1.5), Cm(2), Cm(2.75), Cm(2.29)]
     for row in table2.rows:
         for idx, width in enumerate(widths):
             row.cells[idx].width = width
+
     # Сноска
-    doc.add_paragraph()
     footnote = doc.add_paragraph()
-    footnote_run = footnote.add_run('¹Размер НДС определяется по ставке, установленной п. 3 ст. 164 НК РФ.\n3. Требования к составу материалов и оборудования: Договором предусмотрено давальческие материалы/оборудование в составе (Заполняется при наличии давальческих материалов/оборудования):')
+    footnote_run = footnote.add_run(
+        '¹Размер НДС определяется по ставке, установленной п. 3 ст. 164 НК РФ.')
     footnote_run.font.size = Pt(11)
     footnote_run.font.name = 'Times New Roman'
-    doc.add_paragraph()
 
+    # Пункт 3
+    para3 = doc.add_paragraph()
+    run3 = para3.add_run('3. Требования к составу материалов и оборудования: Договором предусмотрено давальческие материалы/оборудование в составе (Заполняется при наличии давальческих материалов/оборудования):')
+    run3.font.name = 'Times New Roman'
+    run3.font.size = Pt(12)
     # Таблица давальческих материалов
     table3 = doc.add_table(rows=2, cols=4)
     table3.style = 'Table Grid'
 
-    materials_headers = ['№ п/п', 'Наименование давальческих материалов/оборудования', 'Единца измерения', 'Количество']
+    materials_headers = ['№ п/п', 'Наименование давальческих материалов/оборудования', 'Единица измерения',
+                         'Количество']
     for i, header in enumerate(materials_headers):
         cell = table3.rows[0].cells[i]
         cell.text = ''
@@ -248,22 +328,29 @@ def create_application_doc(num, date, table1_rows, table1_data, price1, date_wor
     for row in table3.rows:
         for idx, width in enumerate(widths):
             row.cells[idx].width = width
+
     # Раздел 4
+    total_nds = total_sum * 1.22
+    nds_amount = total_nds - total_sum
     add_formatted_paragraph(doc,
-                            f'4. Стоимость работ, выполняемых по настоящей Заявке определена в соответствии с условиями Договора и составляет {price1*table1_rows} ({sum_to_words(price1*table1_rows)}), в том числе НДС 22% {price1*table1_rows*0.22} ({sum_to_words(table1_rows*price1*0.22)}).',
+                            f'4. Стоимость работ, выполняемых по настоящей Заявке определена в соответствии с условиями Договора и составляет {price_to_show(total_nds)} ({sum_to_words(total_nds)}), в том числе НДС 22% {price_to_show(nds_amount)} ({sum_to_words(nds_amount)}).',
                             bold=False, size=11)
+
     # Раздел 5
     add_formatted_paragraph(doc,
                             '5. Окончательная стоимость работ определяется исходя из фактических объемов, зафиксированных в Акте о приемке выполненных работ, и не может превышать стоимость работ, указанных в п.4 настоящей Заявки.',
                             bold=False, size=11)
+
     # Раздел 6
     add_formatted_paragraph(doc,
                             '6. В случае, если фактическая стоимость работ оказалась меньше суммы, указанной в п. 4. настоящей Заявки, разница между суммой, указанной в п. 4 настоящей Заявки и стоимостью фактически выполненных работ остается у Заказчика.',
                             bold=False, size=11)
+
     # Раздел 7
     add_formatted_paragraph(doc,
-                            f'7. {date_work}.',
+                            f'7. {date_work}',
                             bold=False, size=11)
+
     # Подписи
     add_formatted_paragraph(doc, 'Заказчик', size=11)
     add_formatted_paragraph(doc, 'Должность:', size=11)
@@ -275,4 +362,3 @@ def create_application_doc(num, date, table1_rows, table1_data, price1, date_wor
     print(f"Документ сохранен как: {output_path}")
 
     return output_path
-

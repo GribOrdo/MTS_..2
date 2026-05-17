@@ -70,7 +70,7 @@ def find_info_in_doc(doc):
                     if any(row_data) and not all(cell == "" for cell in row_data):
                         info["адреса объектов"].append(row_data)
                 break
-
+    print(info["адреса объектов"])
     return info
 
 
