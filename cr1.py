@@ -16,6 +16,16 @@ EQUIP_DICT = {
     "3ф ПР": "Счетчик электрической энергии трехфазный непосредственного (прямого) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.749.OG.QYUVLFZ NB02 SPds",
     "3ф ПК": "Счетчик электрической энергии трехфазный трансформаторного (полукосвенного) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.543.OAG.SYUVLFZ NB02 SPds"
 }
+PR_WK_DICT = {
+    "1ф": "1250,00",
+    "3ф ПР": "1250,00",
+    "3ф ПК": "1250,00"
+}
+PR_EQ_DICT = {
+    "1ф": "0,00",
+    "3ф ПР": "0,00",
+    "3ф ПК": "0,00"
+}
 
 
 def price_to_show(pr):
@@ -39,6 +49,8 @@ def clean_price_string(price_str):
     price_str = price_str.replace('\xa0', ' ')  # Заменяем неразрывные пробелы
     price_str = price_str.replace(' ', '')  # Удаляем все пробелы
     price_str = price_str.replace(',', '.')  # Заменяем запятую на точку
+    if price_str.strip() == "":
+        return 0.00
     return float(price_str)
 
 
@@ -54,7 +66,7 @@ def add_formatted_paragraph(doc, text, bold=False, size=11, alignment=None, font
     return para
 
 
-def create_application_doc(num, date, table1_rows, table1_data, table2_data, date_work):
+def create_application_doc(num, date, table1_rows, table1_data, table2_data, date_work, mode):
     """Создание документа заявки"""
 
     doc = Document()
@@ -147,10 +159,29 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
             type_counter["3ф ПК"] += 1
 
     # Извлекаем данные из table2_data
-    table2 = table2_data[2:-2]  # Убираем первые 2 и последние 2 элемента
+    table2 = table2_data[1:-2]  # Убираем первые 2 и последние 2 элемента
+    if table2[0][1].strip() == "":
+        table2.remove(table2[0])
     mid_point = len(table2) // 2
     table2_work = table2[:mid_point]  # Данные работ
     table2_equip = table2[mid_point:]  # Данные оборудования
+
+    for work in table2_work:
+        if "однофазн" in work[1]:
+            WORK_DICT["1ф"] = work[1].strip()
+        if ("трехфазн" in work[1]) and any([w in work[1] for w in ["непосредств", "прям"]]):
+            WORK_DICT["3ф ПР"] = work[1].strip()
+        if ("трехфазн" in work[1]) and any([w in work[1] for w in ["полукосвенн", "трансформаторн"]]):
+            WORK_DICT["3ф ПК"] = work[1].strip()
+
+    for eq in table2_equip:
+        if "однофазн" in eq[1]:
+            EQUIP_DICT["1ф"] = eq[1].strip()
+        if ("трехфазн" in eq[1]) and any([w in eq[1] for w in ["непосредств", "прям"]]):
+            EQUIP_DICT["3ф ПР"] = eq[1].strip()
+        if ("трехфазн" in eq[1]) and any([w in eq[1] for w in ["полукосвенн", "трансформаторн"]]):
+            EQUIP_DICT["3ф ПК"] = eq[1].strip()
+
 
     # Раздел 2: Перечень работ
     add_formatted_paragraph(doc, '\t2. Перечень работ:', size=11)
@@ -189,24 +220,52 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
     total_cost = []
 
     for typ in WORK_DICT.keys():
-        if type_counter[typ] > 0:
+        if mode == 1:
+            if type_counter[typ] > 0:
+                if table2_work:
+                    row_data = table2_work.pop(0)
+                    price_per_unit = clean_price_string(PR_WK_DICT[typ])
+
+                    total_cost.append(type_counter[typ] * price_per_unit)
+
+                    work_values = [
+                        str(table2_p),
+                        WORK_DICT[typ],
+                        str(row_data[2]),
+                        str(type_counter[typ]),
+                        price_to_show(price_per_unit),
+                        price_to_show(type_counter[typ] * price_per_unit)
+                    ]
+
+                    row = table2.add_row()
+                    for col_idx, cell_data in enumerate(work_values):
+                        cell = row.cells[col_idx]
+                        cell.text = ''
+                        para = cell.paragraphs[0]
+                        run = para.add_run(str(cell_data))
+                        run.font.size = Pt(11)
+                        run.font.name = 'Times New Roman'
+                        if col_idx in [0, 2, 3, 4, 5]:
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                    table2_p += 1
+        else:
             if table2_work:
                 row_data = table2_work.pop(0)
-                price_per_unit = clean_price_string(row_data[4])
+                price_per_unit = clean_price_string(PR_WK_DICT[typ])
+                total_cost.append(int(row_data[3]) * price_per_unit)
 
-                total_cost.append(type_counter[typ] * price_per_unit)
-
-                work_values = [
+                equip_values = [
                     str(table2_p),
-                    WORK_DICT[typ],
+                    EQUIP_DICT[typ],
                     str(row_data[2]),
-                    str(type_counter[typ]),
+                    str(row_data[3]),
                     price_to_show(price_per_unit),
-                    price_to_show(type_counter[typ] * price_per_unit)
+                    price_to_show(int(row_data[3]) * price_per_unit)
                 ]
 
                 row = table2.add_row()
-                for col_idx, cell_data in enumerate(work_values):
+                for col_idx, cell_data in enumerate(equip_values):
                     cell = row.cells[col_idx]
                     cell.text = ''
                     para = cell.paragraphs[0]
@@ -230,19 +289,47 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
 
     # Добавляем строки с данными оборудования
     for typ in EQUIP_DICT.keys():
-        if type_counter[typ] > 0:
+        if mode == 1:
+            if type_counter[typ] > 0:
+                if table2_equip:
+                    row_data = table2_equip.pop(0)
+                    price_per_unit = 0
+                    total_cost.append(type_counter[typ] * price_per_unit)
+
+                    equip_values = [
+                        str(table2_p),
+                        EQUIP_DICT[typ],
+                        str(row_data[2]),
+                        str(type_counter[typ]),
+                        price_to_show(price_per_unit),
+                        price_to_show(type_counter[typ] * price_per_unit)
+                    ]
+
+                    row = table2.add_row()
+                    for col_idx, cell_data in enumerate(equip_values):
+                        cell = row.cells[col_idx]
+                        cell.text = ''
+                        para = cell.paragraphs[0]
+                        run = para.add_run(str(cell_data))
+                        run.font.size = Pt(11)
+                        run.font.name = 'Times New Roman'
+                        if col_idx in [0, 2, 3, 4, 5]:
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                    table2_p += 1
+        else:
             if table2_equip:
                 row_data = table2_equip.pop(0)
                 price_per_unit = 0
-                total_cost.append(type_counter[typ] * price_per_unit)
+                total_cost.append(int(row_data[3]) * price_per_unit)
 
                 equip_values = [
                     str(table2_p),
                     EQUIP_DICT[typ],
                     str(row_data[2]),
-                    str(type_counter[typ]),
+                    str(row_data[3]),
                     price_to_show(price_per_unit),
-                    price_to_show(type_counter[typ] * price_per_unit)
+                    price_to_show(int(row_data[3]) * price_per_unit)
                 ]
 
                 row = table2.add_row()

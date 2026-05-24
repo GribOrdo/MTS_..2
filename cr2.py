@@ -16,7 +16,16 @@ EQUIP_DICT = {
     "3ф ПР": "Счетчик электрической энергии трехфазный непосредственного (прямого) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.749.OG.QYUVLFZ NB02 SPds",
     "3ф ПК": "Счетчик электрической энергии трехфазный трансформаторного (полукосвенного) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.543.OAG.SYUVLFZ NB02 SPds"
 }
-
+PR_WK_DICT = {
+    "1ф": "1764,71",
+    "3ф ПР": "1764,71",
+    "3ф ПК": "1764,71"
+}
+PR_EQ_DICT = {
+    "1ф": "7434,12",
+    "3ф ПР": "12352,94",
+    "3ф ПК": "11176,48"
+}
 
 def clean_price_string(price_str):
     """Очистка строки с ценой для конвертации в float"""
@@ -24,6 +33,8 @@ def clean_price_string(price_str):
     price_str = price_str.replace('\xa0', ' ')  # Заменяем неразрывные пробелы
     price_str = price_str.replace(' ', '')  # Удаляем все пробелы
     price_str = price_str.replace(',', '.')  # Заменяем запятую на точку
+    if price_str.strip() == "":
+        return 0.00
     return float(price_str)
 
 def price_to_show(pr):
@@ -41,13 +52,32 @@ def sum_to_words(amount):
     return f"{rub_text} руб. {kop_text} коп."
 
 
-def create_application_doc2(num, date, table1_rows, table1_data, table2_data):
+def create_application_doc2(num, date, table1_rows, table1_data, table2_data, mode):
     # Извлекаем данные из table2_data (без заголовков и итогов)
     # Предполагаемая структура: ['Работы:', данные_работ, 'Оборудование:', данные_оборудования, 'ИТОГО:', 'НДС:']
-    table2 = table2_data[2:-2]  # Убираем первые 2 и последние 2 элемента
+    table2 = table2_data[1:-2]  # Убираем первые 2 и последние 2 элемента
+    if table2[0][1].strip() == "":
+        table2.remove(table2[0])
     mid_point = len(table2) // 2
     table2_work = table2[:mid_point]
     table2_equip = table2[mid_point:]
+
+    for work in table2_work:
+        if "однофазн" in work[1]:
+            WORK_DICT["1ф"] = work[1].strip()
+        if ("трехфазн" in work[1]) and any([w in work[1] for w in ["непосредств", "прям"]]):
+            WORK_DICT["3ф ПР"] = work[1].strip()
+        if ("трехфазн" in work[1]) and any([w in work[1] for w in ["полукосвенн", "трансформаторн"]]):
+            WORK_DICT["3ф ПК"] = work[1].strip()
+
+    for eq in table2_equip:
+        if "однофазн" in eq[1]:
+            EQUIP_DICT["1ф"] = eq[1].strip()
+        if ("трехфазн" in eq[1]) and any([w in eq[1] for w in ["непосредств", "прям"]]):
+            EQUIP_DICT["3ф ПР"] = eq[1].strip()
+        if ("трехфазн" in eq[1]) and any([w in eq[1] for w in ["полукосвенн", "трансформаторн"]]):
+            EQUIP_DICT["3ф ПК"] = eq[1].strip()
+
 
     doc = Document()
 
@@ -191,17 +221,11 @@ def create_application_doc2(num, date, table1_rows, table1_data, table2_data):
     run3.font.name = 'Times New Roman'
     run3.font.size = Pt(12)
 
-    # Подсчет количества типов работ, которые есть
-    types_rows = sum(1 for typ in WORK_DICT.keys() if type_counter[typ] > 0)
-    # Каждый тип занимает 2 строки (работа + оборудование)
-    total_data_rows = types_rows * 2
-    # +2 строки для заголовков "Работы:" и "Оборудование:", +2 для итогов
-    total_rows = 1 + 2 + total_data_rows + 2  # 1 заголовок + 2 подзаголовка + данные + 2 итога
+    # Создаем таблицу перечня работ (начинаем с 2 строк: заголовок + "Работы:")
+    table2 = doc.add_table(rows=2, cols=6)
+    table2.style = 'Table Grid'
+    table2.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    # Таблица работ
-    work_table = doc.add_table(rows=total_rows, cols=6)
-    work_table.style = 'Table Grid'
-    work_table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
     # Заголовки (строка 0)
     work_headers = ['№ п/п', 'Наименование работ', 'Единица измерения',
@@ -209,7 +233,7 @@ def create_application_doc2(num, date, table1_rows, table1_data, table2_data):
                     'Стоимость работ, руб. с НДС']
 
     for i, header in enumerate(work_headers):
-        cell = work_table.rows[0].cells[i]
+        cell = table2.rows[0].cells[i]
         cell.text = ''
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -219,138 +243,217 @@ def create_application_doc2(num, date, table1_rows, table1_data, table2_data):
         run.font.size = Pt(8)
 
     # Заголовок "Работы:" (строка 1)
-    work_table.rows[1].cells[0].merge(work_table.rows[1].cells[5])
-    cell_work = work_table.rows[1].cells[0]
-    cell_work.text = ''
-    p = cell_work.paragraphs[0]
-    run = p.add_run('Работы:')
-    run.bold = True
-    run.font.name = 'Times New Roman'
+    cell_work = table2.rows[1].cells[0]
+    merged_cell = cell_work.merge(table2.rows[1].cells[5])
+    merged_cell.text = ''
+    para = merged_cell.paragraphs[0]
+    run = para.add_run('Работы:')
+    run.bold = False
     run.font.size = Pt(9)
+    run.font.name = 'Times New Roman'
 
+    table2_p = 1
     total_cost = []
-    current_row = 2  # Начинаем со строки 2
 
     # Заполняем данные работ
-    table2_p = 1
     for typ in WORK_DICT.keys():
-        if type_counter[typ] > 0:
-            if table2_work:  # Проверяем, есть ли данные
-                row_data = table2_work.pop(0) if table2_work else ['', '', '', '', '0', '']
-                table2_num = clean_price_string(str(row_data[4]))
-                work_cost = table2_num
-                total_cost.append(type_counter[typ] * table2_num)
+        if mode == 1:
+            if type_counter[typ] > 0:
+                if table2_work:  # Проверяем, есть ли данные
+                    row_data = table2_work.pop(0)
+                    price_per_unit = clean_price_string(PR_WK_DICT[typ])
 
-                work_values = [
-                    str(table2_p),
-                    WORK_DICT[typ],
-                    str(row_data[2]),
-                    str(type_counter[typ]),
-                    price_to_show(table2_num),
-                    price_to_show(type_counter[typ] * table2_num)
-                ]
+                    total_cost.append(type_counter[typ] * price_per_unit)
 
-                for j, value in enumerate(work_values):
-                    cell = work_table.rows[current_row].cells[j]
-                    cell.text = ''
-                    p = cell.paragraphs[0]
-                    run = p.add_run(value)
-                    run.font.name = 'Times New Roman'
-                    run.font.size = Pt(9)
-                    if j in [0, 2, 3, 4, 5]:
-                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    work_values = [
+                        str(table2_p),
+                        WORK_DICT[typ],
+                        str(row_data[2]),
+                        str(type_counter[typ]),
+                        price_to_show(price_per_unit),
+                        price_to_show(type_counter[typ] * price_per_unit)
+                    ]
 
-                current_row += 1
-                table2_p += 1
+                    row = table2.add_row()
+                    for col_idx, cell_data in enumerate(work_values):
+                        cell = row.cells[col_idx]
+                        cell.text = ''
+                        para = cell.paragraphs[0]
+                        run = para.add_run(str(cell_data))
+                        run.font.size = Pt(11)
+                        run.font.name = 'Times New Roman'
+                        if col_idx in [0, 2, 3, 4, 5]:
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    # Заголовок "Оборудование:"
-    work_table.rows[current_row].cells[0].merge(work_table.rows[current_row].cells[5])
-    cell_eq = work_table.rows[current_row].cells[0]
-    cell_eq.text = ''
-    p = cell_eq.paragraphs[0]
-    run = p.add_run('Оборудование:')
-    run.bold = True
-    run.font.name = 'Times New Roman'
-    run.font.size = Pt(9)
-
-    current_row += 1
-
-    # Заполняем данные оборудования
-    for typ in EQUIP_DICT.keys():
-        if type_counter[typ] > 0:
-            if table2_equip:  # Проверяем, есть ли данные
-                row_data = table2_equip.pop(0) if table2_equip else ['', '', '', '', '0', '']
-                table2_num = clean_price_string(str(row_data[4]))
-                equip_cost = table2_num
-                total_cost.append(type_counter[typ] * table2_num)
+                    table2_p += 1
+        else:
+            if table2_work:
+                row_data = table2_work.pop(0)
+                price_per_unit = clean_price_string(PR_WK_DICT[typ])
+                total_cost.append(int(row_data[3]) * price_per_unit)
 
                 equip_values = [
                     str(table2_p),
                     EQUIP_DICT[typ],
                     str(row_data[2]),
-                    str(type_counter[typ]),
-                    price_to_show(table2_num),
-                    price_to_show(type_counter[typ] * table2_num)
+                    str(row_data[3]),
+                    price_to_show(price_per_unit),
+                    price_to_show(int(row_data[3]) * price_per_unit)
                 ]
 
-                for j, value in enumerate(equip_values):
-                    cell = work_table.rows[current_row].cells[j]
+                row = table2.add_row()
+                for col_idx, cell_data in enumerate(equip_values):
+                    cell = row.cells[col_idx]
                     cell.text = ''
-                    p = cell.paragraphs[0]
-                    run = p.add_run(value)
+                    para = cell.paragraphs[0]
+                    run = para.add_run(str(cell_data))
+                    run.font.size = Pt(11)
                     run.font.name = 'Times New Roman'
-                    run.font.size = Pt(9)
-                    if j in [0, 2, 3, 4, 5]:
-                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    if col_idx in [0, 2, 3, 4, 5]:
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-                current_row += 1
                 table2_p += 1
 
+    # Добавляем строку "Оборудование:"
+    row_eq_header = table2.add_row()
+    merged_cell2 = row_eq_header.cells[0].merge(row_eq_header.cells[5])
+    merged_cell2.text = ''
+    para = merged_cell2.paragraphs[0]
+    run = para.add_run('Оборудование:')
+    run.bold = False
+    run.font.size = Pt(9)
+    run.font.name = 'Times New Roman'
+
+    # Заполняем данные оборудования
+    for typ in EQUIP_DICT.keys():
+        if mode == 1:
+            if type_counter[typ] > 0:
+                if table2_equip:
+                    row_data = table2_equip.pop(0)
+                    price_per_unit = clean_price_string(PR_EQ_DICT[typ])
+                    total_cost.append(type_counter[typ] * price_per_unit)
+
+                    equip_values = [
+                        str(table2_p),
+                        EQUIP_DICT[typ],
+                        str(row_data[2]),
+                        str(type_counter[typ]),
+                        price_to_show(price_per_unit),
+                        price_to_show(type_counter[typ] * price_per_unit)
+                    ]
+
+                    row = table2.add_row()
+                    for col_idx, cell_data in enumerate(equip_values):
+                        cell = row.cells[col_idx]
+                        cell.text = ''
+                        para = cell.paragraphs[0]
+                        run = para.add_run(str(cell_data))
+                        run.font.size = Pt(11)
+                        run.font.name = 'Times New Roman'
+                        if col_idx in [0, 2, 3, 4, 5]:
+                            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                    table2_p += 1
+                else:
+                    if table2_equip:
+                        row_data = table2_equip.pop(0)
+                        price_per_unit = clean_price_string(PR_EQ_DICT[typ])
+                        total_cost.append(int(row_data[3]) * price_per_unit)
+
+                        equip_values = [
+                            str(table2_p),
+                            EQUIP_DICT[typ],
+                            str(row_data[2]),
+                            str(row_data[3]),
+                            price_to_show(price_per_unit),
+                            price_to_show(int(row_data[3]) * price_per_unit)
+                        ]
+
+                        row = table2.add_row()
+                        for col_idx, cell_data in enumerate(equip_values):
+                            cell = row.cells[col_idx]
+                            cell.text = ''
+                            para = cell.paragraphs[0]
+                            run = para.add_run(str(cell_data))
+                            run.font.size = Pt(11)
+                            run.font.name = 'Times New Roman'
+                            if col_idx in [0, 2, 3, 4, 5]:
+                                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                        table2_p += 1
+        else:
+            if table2_equip:
+                row_data = table2_equip.pop(0)
+                price_per_unit = clean_price_string(PR_EQ_DICT[typ])
+                total_cost.append(int(row_data[3]) * price_per_unit)
+
+                equip_values = [
+                    str(table2_p),
+                    EQUIP_DICT[typ],
+                    str(row_data[2]),
+                    str(row_data[3]),
+                    price_to_show(price_per_unit),
+                    price_to_show(int(row_data[3]) * price_per_unit)
+                ]
+
+                row = table2.add_row()
+                for col_idx, cell_data in enumerate(equip_values):
+                    cell = row.cells[col_idx]
+                    cell.text = ''
+                    para = cell.paragraphs[0]
+                    run = para.add_run(str(cell_data))
+                    run.font.size = Pt(11)
+                    run.font.name = 'Times New Roman'
+                    if col_idx in [0, 2, 3, 4, 5]:
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                table2_p += 1
     # Итоговая строка
     nds_amount = (sum(total_cost)/1.22 - sum(total_cost)) * (-1)
+    total_sum = sum(total_cost)
 
-    work_table.rows[current_row].cells[0].merge(work_table.rows[current_row].cells[4])
-    cell_total_label = work_table.rows[current_row].cells[0]
-    cell_total_label.text = ''
-    p = cell_total_label.paragraphs[0]
-    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = p.add_run('ИТОГО:')
-    run.bold = True
+    # Итоговая строка
+    total_row = table2.add_row()
+    merged_total = total_row.cells[0].merge(total_row.cells[4])
+    merged_total.text = ''
+    para = merged_total.paragraphs[0]
+    run = para.add_run('ИТОГО')
+    run.bold = False
+    run.font.size = Pt(11)
     run.font.name = 'Times New Roman'
-    run.font.size = Pt(10)
 
-    cell_total_value = work_table.rows[current_row].cells[5]
-    cell_total_value.text = ''
-    p = cell_total_value.paragraphs[0]
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(price_to_show(sum(total_cost)))
-    run.bold = True
+    total_cell = total_row.cells[5]
+    total_cell.text = ''
+    para = total_cell.paragraphs[0]
+    run = para.add_run(price_to_show(total_sum))
+    run.bold = False
+    run.font.size = Pt(11)
     run.font.name = 'Times New Roman'
-    run.font.size = Pt(10)
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    current_row += 1
 
     # Строка НДС
-    work_table.rows[current_row].cells[0].merge(work_table.rows[current_row].cells[4])
-    cell_nds_label = work_table.rows[current_row].cells[0]
-    cell_nds_label.text = ''
-    p = cell_nds_label.paragraphs[0]
-    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = p.add_run('в том числе НДС 22%')
+    nds_row = table2.add_row()
+    merged_nds = nds_row.cells[0].merge(nds_row.cells[4])
+    merged_nds.text = ''
+    para = merged_nds.paragraphs[0]
+    run = para.add_run('в том числе НДС 22%')
+    run.bold = False
+    run.font.size = Pt(11)
     run.font.name = 'Times New Roman'
-    run.font.size = Pt(9)
 
-    cell_nds_value = work_table.rows[current_row].cells[5]
-    cell_nds_value.text = ''
-    p = cell_nds_value.paragraphs[0]
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(price_to_show(nds_amount))
+    nds_cell = nds_row.cells[5]
+    nds_cell.text = ''
+    para = nds_cell.paragraphs[0]
+    run = para.add_run(price_to_show(nds_amount))
+    run.bold = False
+    run.font.size = Pt(11)
     run.font.name = 'Times New Roman'
-    run.font.size = Pt(9)
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Настройка ширины колонок
     work_widths = [Cm(0.99), Cm(6), Cm(1.5), Cm(2), Cm(2.75), Cm(2.29)]
-    for row in work_table.rows:
+    for row in table2.rows:
         if len(row.cells) == 6:
             for idx, width in enumerate(work_widths):
                 row.cells[idx].width = width

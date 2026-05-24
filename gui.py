@@ -2,26 +2,17 @@ import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
 import os
 from docx import Document
+from tkinterdnd2 import DND_FILES, TkinterDnD
 from parse import find_info_in_doc
 from cr1 import create_application_doc
 from cr1 import price_to_show
+from cr2 import create_application_doc2
 
-try:
-    from cr2 import create_application_doc2
-except ImportError:
-    create_application_doc2 = None
-
-WORK_DICT = {
-    "1ф": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии однофазного",
-    "3ф ПР": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного непосредственного (прямого) включения",
-    "3ф ПК": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного трансформаторного включения"
-}
 
 
 class App:
     def __init__(self, root):
         self.table2_data = None
-        self.price_temp = None
         self.root = root
         self.root.title("Обработчик заявок")
         self.root.geometry("1200x700")
@@ -31,15 +22,9 @@ class App:
         self.file_path = None
         self.cur7 = None
         self.current_template = 1  # 1 или 2
-
-        # Цены для разных типов работ
-        self.prices = {
-            "1ф": 0.0,
-            "3ф ПР": 0.0,
-            "3ф ПК": 0.0
-        }
-
+        self.current_mode = 1   # таблица (1) или строка (1)
         self.setup_ui()
+        self.setup_drag_and_drop()
 
     def setup_ui(self):
         # Верхняя панель
@@ -61,15 +46,33 @@ class App:
                                        command=lambda: self.switch_template(1),
                                        bg="#4CAF50", fg="white",
                                        font=("Arial", 10, "bold"),
-                                       relief="sunken", width=12)
+                                       relief="sunken", width=10)
         self.btn_template1.pack(side=tk.LEFT, padx=2)
 
         self.btn_template2 = tk.Button(template_frame, text="Шаблон 2",
                                        command=lambda: self.switch_template(2),
                                        bg="#607D8B", fg="white",
                                        font=("Arial", 10, "bold"),
-                                       relief="raised", width=12)
+                                       relief="raised", width=10)
         self.btn_template2.pack(side=tk.LEFT, padx=2)
+
+        # Кнопки режимов
+        mode_frame = tk.Frame(top_frame)
+        mode_frame.pack(side=tk.LEFT, padx=50)
+
+        self.btn_template3 = tk.Button(template_frame, text="Таблица",
+                                       command=lambda: self.switch_mode(1),
+                                       bg="#4CAF50", fg="white",
+                                       font=("Arial", 10, "bold"),
+                                       relief="sunken", width=10)
+        self.btn_template3.pack(side=tk.LEFT, padx=2)
+
+        self.btn_template4 = tk.Button(template_frame, text="Текст",
+                                       command=lambda: self.switch_mode(2),
+                                       bg="#607D8B", fg="white",
+                                       font=("Arial", 10, "bold"),
+                                       relief="raised", width=10)
+        self.btn_template4.pack(side=tk.LEFT, padx=2)
 
         tk.Button(top_frame, text="Создать документ", command=self.create_doc,
                   bg="#4CAF50", fg="white", font=("Arial", 11, "bold"),
@@ -89,35 +92,16 @@ class App:
         self.entry_date.insert(0, "« 00 » января 2000 г.")
         self.entry_date.pack(side=tk.LEFT, padx=5)
 
-        # Поля для цен
-        price_frame = tk.Frame(self.root)
-        price_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        tk.Label(price_frame, text="Цены за единицу работы (руб.):",
-                 font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(0, 10))
-
-        # Создаем поля для каждого типа работ
-        self.price_entries = {}
-        for i, (code, description) in enumerate(WORK_DICT.items()):
-            frame = tk.Frame(price_frame)
-            frame.pack(side=tk.LEFT, padx=10)
-
-            # Сокращенное описание для метки
-            short_desc = code
-            tk.Label(frame, text=f"{short_desc}:", font=("Arial", 9)).pack(side=tk.LEFT)
-
-            entry = tk.Entry(frame, width=12, font=("Arial", 10))
-            entry.insert(0, "0")
-            entry.pack(side=tk.LEFT, padx=2)
-            self.price_entries[code] = entry
-
-            # Добавляем подсказку при наведении
-            self.create_tooltip(entry, description)
 
         # Метка текущего шаблона
         self.lbl_template = tk.Label(param_frame, text="Текущий шаблон: 1",
                                      font=("Arial", 10, "bold"), fg="#4CAF50")
         self.lbl_template.pack(side=tk.RIGHT, padx=20)
+
+        self.lbl_mode = tk.Label(param_frame, text="Текущий режим: таблица",
+                                     font=("Arial", 10, "bold"), fg="#4CAF50")
+        self.lbl_mode.pack(side=tk.LEFT, padx=60)
 
         # Панель управления строками
         ctrl_frame = tk.Frame(self.root)
@@ -169,46 +153,6 @@ class App:
         self.checkboxes = []
         self.labels = []
 
-    def create_tooltip(self, widget, text):
-        """Создание всплывающей подсказки для виджета"""
-
-        def enter(event):
-            x, y, _, _ = widget.bbox("insert")
-            x += widget.winfo_rootx() + 25
-            y += widget.winfo_rooty() + 25
-
-            # Создаем окно подсказки
-            self.tooltip = tk.Toplevel(widget)
-            self.tooltip.wm_overrideredirect(True)
-            self.tooltip.wm_geometry(f"+{x}+{y}")
-
-            # Разбиваем длинный текст на строки
-            words = text.split()
-            lines = []
-            current_line = []
-            for word in words:
-                current_line.append(word)
-                if len(' '.join(current_line)) > 50:
-                    lines.append(' '.join(current_line[:-1]))
-                    current_line = [word]
-            if current_line:
-                lines.append(' '.join(current_line))
-
-            label = tk.Label(self.tooltip, text='\n'.join(lines),
-                             justify=tk.LEFT,
-                             background="#ffffe0",
-                             relief=tk.SOLID,
-                             borderwidth=1,
-                             font=("Arial", "8", "normal"))
-            label.pack()
-
-        def leave(event):
-            if hasattr(self, 'tooltip'):
-                self.tooltip.destroy()
-
-        widget.bind('<Enter>', enter)
-        widget.bind('<Leave>', leave)
-
     def switch_template(self, template_num):
         """Переключение между шаблонами"""
         self.current_template = template_num
@@ -218,16 +162,29 @@ class App:
             self.btn_template2.config(bg="#607D8B", relief="raised")
             self.lbl_template.config(text="Текущий шаблон: 1", fg="#4CAF50")
 
+
         else:
             self.btn_template1.config(bg="#607D8B", relief="raised")
             self.btn_template2.config(bg="#4CAF50", relief="sunken")
             self.lbl_template.config(text="Текущий шаблон: 2", fg="#4CAF50")
 
-            # Проверяем наличие cr2.py
-            if create_application_doc2 is None:
-                messagebox.showwarning("Предупреждение",
-                                       "Файл cr2.py не найден!\nБудет использован шаблон 1.")
-                self.switch_template(1)
+    def switch_mode(self, mode_num):
+        """Переключение между шаблонами"""
+        self.current_mode = mode_num
+
+        if mode_num == 1:
+            self.btn_template3.config(bg="#4CAF50", relief="sunken")
+            self.btn_template4.config(bg="#607D8B", relief="raised")
+            self.lbl_mode.config(text="Текущий режим: таблица", fg="#4CAF50")
+
+
+        else:
+            self.btn_template3.config(bg="#607D8B", relief="raised")
+            self.btn_template4.config(bg="#4CAF50", relief="sunken")
+            self.lbl_mode.config(text="Текущий режим: текст", fg="#4CAF50")
+
+
+
 
     def load_file(self):
         file_path = filedialog.askopenfilename(
@@ -244,9 +201,8 @@ class App:
 
             # Используем parse.py для извлечения данных
             doc = Document(file_path)
-            info = find_info_in_doc(doc)
+            info = find_info_in_doc(doc, file_path)
             self.cur7 = info["дата выполнения"]
-
             # Заполняем параметры если нашли
             if info["номер заявки"]:
                 self.entry_num.delete(0, tk.END)
@@ -254,18 +210,16 @@ class App:
 
             if info["дата обращения"]:
                 self.entry_date.delete(0, tk.END)
-                self.entry_date.insert(0, info["дата обращения"][:50])
+                self.entry_date.insert(0, info["дата обращения"][:50])  # Обрезаем если длинное
 
             if info["таблица работ"]:
                 self.table2_data = info["таблица работ"]
-                # Извлекаем цены из таблицы работ
-                self.extract_prices_from_table(info["таблица работ"])
 
             # Берем адреса объектов
             self.current_data = []
             for row in info["адреса объектов"]:
                 if row[0] != '№п/п':
-                    self.current_data.append(row)
+                    self.current_data.append(row)  # Берем первые 5 колонок
 
             if not self.current_data:
                 messagebox.showwarning("Предупреждение", "Не удалось найти данные объектов в файле")
@@ -275,68 +229,6 @@ class App:
 
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось загрузить файл:\n{str(e)}")
-
-    def extract_prices_from_table(self, table_data):
-        """Извлечение цен из таблицы работ для каждого типа"""
-        # Сбрасываем все цены в 0
-        for code in self.prices:
-            self.prices[code] = 0.0
-            self.price_entries[code].delete(0, tk.END)
-            self.price_entries[code].insert(0, "0")
-
-        # Если данных нет, выходим
-        if not table_data or len(table_data) < 4:
-            return
-
-        # Пропускаем первые 2 строки (заголовки)
-        data_rows = table_data[2:-2]  # Убираем заголовки и итоги
-
-        if len(data_rows) < 2:
-            return
-
-        # Разделяем на работы и оборудование
-        mid_point = len(data_rows) // 2
-        work_rows = data_rows[:mid_point]
-
-        # Сопоставляем работы с типами
-        # Проходим по всем строкам работ и ищем соответствия
-        for row in work_rows:
-            if len(row) < 5:
-                continue
-
-            work_name = str(row[1]).lower() if row[1] else ""
-            price_str = str(row[4]) if row[4] else "0"
-
-            # Очищаем строку цены
-            try:
-                price = float(price_str.replace('\xa0', ' ').replace(' ', '').replace(',', '.'))
-            except:
-                price = 0.0
-
-            # Определяем тип работы по названию
-            if "однофазного" in work_name:
-                self.prices["1ф"] = price
-                self.price_entries["1ф"].delete(0, tk.END)
-                self.price_entries["1ф"].insert(0, str(price))
-            elif "трансформаторного" in work_name or "полукосвенного" in work_name or "полукосвенного" in work_name:
-                self.prices["3ф ПК"] = price
-                self.price_entries["3ф ПК"].delete(0, tk.END)
-                self.price_entries["3ф ПК"].insert(0, str(price))
-            elif "трехфазного" in work_name and "непосредственного" in work_name or "прямого" in work_name:
-                self.prices["3ф ПР"] = price
-                self.price_entries["3ф ПР"].delete(0, tk.END)
-                self.price_entries["3ф ПР"].insert(0, str(price))
-
-    def update_prices_from_entries(self):
-        """Обновление цен из полей ввода"""
-        for code, entry in self.price_entries.items():
-            try:
-                value = float(entry.get().replace(',', '.').replace(' ', ''))
-                self.prices[code] = value
-            except ValueError:
-                self.prices[code] = 0.0
-                entry.delete(0, tk.END)
-                entry.insert(0, "0")
 
     def update_table(self):
         # Очищаем таблицу
@@ -448,9 +340,6 @@ class App:
             return
 
         try:
-            # Обновляем цены из полей ввода
-            self.update_prices_from_entries()
-
             # Получаем данные только активных строк и нормализуем их
             active_data = []
             for i in self.active_rows:
@@ -471,21 +360,18 @@ class App:
 
             num = self.entry_num.get() or "ERROR_IN_NUM"
             date = self.entry_date.get() or "ERROR_IN_DATE"
-
-            # Обновляем table2_data с новыми ценами
-            updated_table2_data = self.update_table2_data_with_prices()
-
             # ВАЖНО: table1_rows должно быть количество строк данных + 1 (заголовок)
-            table1_rows = len(active_data) + 1
+            table1_rows = len(active_data) + 1  # +1 для строки заголовка
 
             # Выбираем функцию создания в зависимости от шаблона
-            if self.current_template == 2 and create_application_doc2 is not None:
+            if self.current_template == 2:
                 output = create_application_doc2(
                     num=num,
                     date=date,
                     table1_rows=table1_rows,
                     table1_data=active_data,
-                    table2_data=updated_table2_data
+                    table2_data=self.table2_data,
+                    mode=self.current_mode
                 )
                 template_name = "Шаблон 2"
             else:
@@ -494,8 +380,9 @@ class App:
                     date=date,
                     table1_rows=table1_rows,
                     table1_data=active_data,
-                    table2_data=updated_table2_data,
-                    date_work=self.cur7
+                    table2_data=self.table2_data,
+                    date_work=self.cur7,
+                    mode=self.current_mode
                 )
                 template_name = "Шаблон 1"
 
@@ -512,62 +399,63 @@ class App:
 
         except Exception as e:
             import traceback
-            traceback.print_exc()
+            traceback.print_exc()  # Выведет полную ошибку в консоль
             messagebox.showerror("Ошибка", f"Не удалось создать документ:\n{str(e)}")
 
-    def update_table2_data_with_prices(self):
-        """Обновление table2_data с учетом пользовательских цен"""
-        if not self.table2_data:
-            return None
+    # Inside your App class, add a method to set up drag-and-drop:
+    def setup_drag_and_drop(self):
+        # Create a label or frame to act as a drag-and-drop target
+        self.drop_label = tk.Label(self.root, text="Перетащите файл сюда", bg="#e0e0e0", height=4)
+        self.drop_label.pack(fill=tk.X, padx=10, pady=10)
 
-        # Создаем копию данных
-        updated_data = []
-        for row in self.table2_data:
-            updated_data.append(list(row))
+        # Register the label as a drop target
+        self.drop_label.drop_target_register(DND_FILES)
 
-        # Пропускаем первые 2 строки (заголовки)
-        data_start = 2
-        data_end = len(updated_data) - 2
+        def on_drop(event):
+            # event.data contains the file path(s), possibly enclosed in braces if path contains spaces
+            files = self.root.tk.splitlist(event.data)
+            if files:
+                file_path = files[0]
+                self.load_file_from_path(file_path)
 
-        if data_end - data_start < 2:
-            return updated_data
+        # Bind the drop event
+        self.drop_label.dnd_bind('<<Drop>>', on_drop)
 
-        # Разделяем на работы и оборудование
-        work_rows_indices = []
-        equip_rows_indices = []
+    def load_file_from_path(self, file_path):
+        try:
+            self.file_path = file_path
+            self.lbl_file.config(text=os.path.basename(file_path), fg="green")
+            # Your existing logic to process the file
+            doc = Document(file_path)
+            info = find_info_in_doc(doc, file_path)
+            self.cur7 = info["дата выполнения"]
+            # Fill in your data...
+            if info["номер заявки"]:
+                self.entry_num.delete(0, tk.END)
+                self.entry_num.insert(0, info["номер заявки"])
 
-        found_equip = False
-        for i in range(data_start, data_end):
-            cell_text = str(updated_data[i][1]).lower() if len(updated_data[i]) > 1 else ""
+            if info["дата обращения"]:
+                self.entry_date.delete(0, tk.END)
+                self.entry_date.insert(0, info["дата обращения"][:50])  # Limit length
 
-            if "оборудование" in cell_text:
-                found_equip = True
-                continue
+            if info["таблица работ"]:
+                self.table2_data = info["таблица работ"]
 
-            if not found_equip:
-                work_rows_indices.append(i)
-            else:
-                equip_rows_indices.append(i)
+            # Обновляем таблицу
+            self.current_data = []
+            for row in info["адреса объектов"]:
+                if row[0] != '№п/п':
+                    self.current_data.append(row)  # Берем первые 5 колонок
 
-        # Обновляем цены в строках работ
-        for idx in work_rows_indices:
-            if len(updated_data[idx]) < 5:
-                continue
+            self.update_table()
 
-            work_name = str(updated_data[idx][1]).lower() if updated_data[idx][1] else ""
-
-            # Определяем тип работы и обновляем цену
-            if "однофазного" in work_name:
-                updated_data[idx][4] = str(self.prices["1ф"])
-            elif "трансформаторного" in work_name or "полукосвенного" in work_name:
-                updated_data[idx][4] = str(self.prices["3ф ПК"])
-            elif "трехфазного" in work_name and ("непосредственного" in work_name or "прямого" in work_name):
-                updated_data[idx][4] = str(self.prices["3ф ПР"])
-
-        return updated_data
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Ошибка", f"Не удалось загрузить файл:\n{str(e)}")
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = TkinterDnD.Tk()
     app = App(root)
     root.mainloop()
