@@ -7,22 +7,41 @@ from parse import find_info_in_doc
 from cr1 import create_application_doc
 from cr1 import price_to_show
 from cr2 import create_application_doc2
+import datetime
 
 
 
 class App:
     def __init__(self, root):
+        self.date2 = None
+        self.labels = None
+        self.drop_label = None
+        self.table_frame = None
+        self.lbl_count = None
+        self.lbl_mode = None
+        self.lbl_template = None
+        self.entry_date = None
+        self.entry_num = None
+        self.btn_template4 = None
+        self.btn_template3 = None
+        self.btn_template2 = None
+        self.btn_template1 = None
+        self.lbl_file = None
+        self.checkboxes = None
+        self.canvas = None
+        self.scrollable_frame = None
         self.table2_data = None
         self.root = root
         self.root.title("Обработчик заявок")
         self.root.geometry("1200x700")
+        self.is_pressed = False
 
         self.current_data = []  # Данные из файла
         self.active_rows = []  # Активные строки (индексы)
         self.file_path = None
         self.cur7 = None
         self.current_template = 1  # 1 или 2
-        self.current_mode = 1   # таблица (1) или строка (1)
+        self.current_mode = 1  # таблица (1) или строка (1)
         self.setup_ui()
         self.setup_drag_and_drop()
 
@@ -31,7 +50,7 @@ class App:
         top_frame = tk.Frame(self.root)
         top_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        tk.Button(top_frame, text="Выбрать Word файл", command=self.load_file,
+        tk.Button(top_frame, text="Выбрать Word файл", command=self.load_file_from_path,
                   bg="#2196F3", fg="white", font=("Arial", 11, "bold"),
                   height=2, width=20).pack(side=tk.LEFT, padx=5)
 
@@ -89,10 +108,9 @@ class App:
 
         tk.Label(param_frame, text="Дата:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(20, 5))
         self.entry_date = tk.Entry(param_frame, width=25, font=("Arial", 10))
-        self.entry_date.insert(0, "« 00 » января 2000 г.")
+        entr = f"{str(datetime.date.today().day).rjust(2, '0')}.{str(datetime.date.today().month).rjust(2, '0')}.{datetime.date.today().year} г."
+        self.entry_date.insert(0, entr)
         self.entry_date.pack(side=tk.LEFT, padx=5)
-
-
 
         # Метка текущего шаблона
         self.lbl_template = tk.Label(param_frame, text="Текущий шаблон: 1",
@@ -100,7 +118,7 @@ class App:
         self.lbl_template.pack(side=tk.RIGHT, padx=20)
 
         self.lbl_mode = tk.Label(param_frame, text="Текущий режим: таблица",
-                                     font=("Arial", 10, "bold"), fg="#4CAF50")
+                                 font=("Arial", 10, "bold"), fg="#4CAF50")
         self.lbl_mode.pack(side=tk.LEFT, padx=60)
 
         # Панель управления строками
@@ -122,22 +140,22 @@ class App:
         table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # Canvas + Scrollbar для прокрутки
-        canvas = tk.Canvas(table_frame)
-        scrollbar = tk.Scrollbar(table_frame, orient="vertical", command=canvas.yview)
-        self.scrollable_frame = tk.Frame(canvas)
+        self.canvas = tk.Canvas(table_frame)
+        scrollbar = tk.Scrollbar(table_frame, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas)
 
         self.scrollable_frame.bind("<Configure>",
-                                   lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+                                   lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
 
-        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
 
-        canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
         # Заголовки таблицы
         headers = ["Акт.", "№п/п", "Кол-во ПУ", "Тип ПУ", "Адрес объекта", "Примечания"]
-        widths = [5, 5, 8, 8, 40, 40]
+        widths = [7, 4, 8, 6, 40, 40]
 
         header_frame = tk.Frame(self.scrollable_frame, bg="#e0e0e0")
         header_frame.pack(fill=tk.X)
@@ -149,6 +167,8 @@ class App:
 
         self.table_frame = tk.Frame(self.scrollable_frame)
         self.table_frame.pack(fill=tk.X)
+        self.canvas.bind('<Enter>', self._bound_to_mousewheel)
+        self.canvas.bind('<Leave>', self._unbound_to_mousewheel)
 
         self.checkboxes = []
         self.labels = []
@@ -162,11 +182,19 @@ class App:
             self.btn_template2.config(bg="#607D8B", relief="raised")
             self.lbl_template.config(text="Текущий шаблон: 1", fg="#4CAF50")
 
-
         else:
             self.btn_template1.config(bg="#607D8B", relief="raised")
             self.btn_template2.config(bg="#4CAF50", relief="sunken")
             self.lbl_template.config(text="Текущий шаблон: 2", fg="#4CAF50")
+
+    def _bound_to_mousewheel(self, event):
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _unbound_to_mousewheel(self, event):
+        self.canvas.unbind_all("<MouseWheel>")
+
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def switch_mode(self, mode_num):
         """Переключение между шаблонами"""
@@ -177,58 +205,10 @@ class App:
             self.btn_template4.config(bg="#607D8B", relief="raised")
             self.lbl_mode.config(text="Текущий режим: таблица", fg="#4CAF50")
 
-
         else:
             self.btn_template3.config(bg="#607D8B", relief="raised")
             self.btn_template4.config(bg="#4CAF50", relief="sunken")
             self.lbl_mode.config(text="Текущий режим: текст", fg="#4CAF50")
-
-
-
-
-    def load_file(self):
-        file_path = filedialog.askopenfilename(
-            title="Выберите Word документ",
-            filetypes=[("Word documents", "*.docx"), ("All files", "*.*")]
-        )
-
-        if not file_path:
-            return
-
-        try:
-            self.file_path = file_path
-            self.lbl_file.config(text=os.path.basename(file_path), fg="green")
-
-            # Используем parse.py для извлечения данных
-            doc = Document(file_path)
-            info = find_info_in_doc(doc, file_path)
-            self.cur7 = info["дата выполнения"]
-            # Заполняем параметры если нашли
-            if info["номер заявки"]:
-                self.entry_num.delete(0, tk.END)
-                self.entry_num.insert(0, info["номер заявки"])
-
-            if info["дата обращения"]:
-                self.entry_date.delete(0, tk.END)
-                self.entry_date.insert(0, info["дата обращения"][:50])  # Обрезаем если длинное
-
-            if info["таблица работ"]:
-                self.table2_data = info["таблица работ"]
-
-            # Берем адреса объектов
-            self.current_data = []
-            for row in info["адреса объектов"]:
-                if row[0] != '№п/п':
-                    self.current_data.append(row)  # Берем первые 5 колонок
-
-            if not self.current_data:
-                messagebox.showwarning("Предупреждение", "Не удалось найти данные объектов в файле")
-                return
-
-            self.update_table()
-
-        except Exception as e:
-            messagebox.showerror("Ошибка", f"Не удалось загрузить файл:\n{str(e)}")
 
     def update_table(self):
         # Очищаем таблицу
@@ -240,21 +220,32 @@ class App:
 
         # Фиксированные ширины столбцов в пикселях
         col_widths = {
-            0: 50,  # Чекбокс
-            1: 60,  # №п/п
-            2: 70,  # Кол-во ПУ
-            3: 80,  # Тип ПУ
-            4: 300,  # Адрес объекта
-            5: 300  # Примечания
+            0: 61,  # Чекбокс
+            1: 40,  # №п/п
+            2: 68,  # Кол-во ПУ
+            3: 54,  # Тип ПУ
+            4: 292,  # Адрес объекта
+            5: 292  # Примечания
         }
 
         for row_idx, row_data in enumerate(self.current_data):
             # Чекбокс
             var = tk.BooleanVar(value=True)
-            cb = tk.Checkbutton(self.table_frame, variable=var,
-                                command=lambda r=row_idx, v=var: self.on_check(r, v))
-            cb.grid(row=row_idx, column=0, sticky="w", padx=2)
+            cb = tk.Button(self.table_frame,
+                           width='7', height='4', relief="raised",
+                           cursor='dot', bg="green")
+            cb.grid(row=row_idx, column=0, sticky="w", padx=0)
             cb.var = var
+
+            # ПЕРЕДАЕМ cb В ЛЯМБДУ ПОСЛЕ СОЗДАНИЯ КНОПКИ
+
+            if var.get():
+                cb.config(bg="green", relief="sunken")
+            else:
+                cb.config(bg="red", relief="raised")
+            cb.update_idletasks()
+
+            cb.config(command=lambda r=row_idx, btn=cb, v=var: self.on_check(r, btn, v))
             self.checkboxes.append(cb)
 
             # Данные
@@ -262,7 +253,7 @@ class App:
                 if col_idx < 5:
                     # Обрезаем текст для отображения
                     text = str(value)
-                    display_text = text[:80] + "..." if len(text) > 100 else text
+                    display_text = text
 
                     lbl = tk.Label(
                         self.table_frame,
@@ -271,21 +262,11 @@ class App:
                         borderwidth=1,
                         relief="solid",
                         width=col_widths[col_idx + 1] // 7,  # Примерная ширина в символах
-                        anchor="w",
+                        anchor="center",
                         padx=3,
                         wraplength=col_widths[col_idx + 1] - 10  # Перенос текста
                     )
                     lbl.grid(row=row_idx, column=col_idx + 1, sticky="nsew")
-
-            # Цвет фона
-            bg_color = "#f5f5f5" if row_idx % 2 == 0 else "white"
-            for col in range(6):
-                widgets = self.table_frame.grid_slaves(row=row_idx, column=col)
-                for widget in widgets:
-                    try:
-                        widget.config(bg=bg_color)
-                    except:
-                        pass
 
         # Фиксируем ширину колонок через grid_columnconfigure
         for col, width in col_widths.items():
@@ -293,7 +274,16 @@ class App:
 
         self.lbl_count.config(text=f"Записей: {len(self.current_data)} | Активных: {len(self.active_rows)}")
 
-    def on_check(self, row, var):
+    def on_check(self, row, button, var):
+        # Переключаем состояние и цвет кнопки
+        if var.get():
+            var.set(False)
+            button.config(bg="red", relief="raised")
+        else:
+            var.set(True)
+            button.config(bg="green", relief="sunken")
+
+        # Обновляем список активных строк
         if var.get():
             if row not in self.active_rows:
                 self.active_rows.append(row)
@@ -305,20 +295,33 @@ class App:
         self.lbl_count.config(text=f"Записей: {len(self.current_data)} | Активных: {len(self.active_rows)}")
 
     def toggle_all(self, state):
-        self.active_rows = list(range(len(self.current_data))) if state else []
-        for cb in self.checkboxes:
-            cb.var.set(state)
+        """Toggle all checkboxes to the specified state (True/False)"""
+        if state:
+            self.active_rows = list(range(len(self.current_data)))
+        else:
+            self.active_rows = []
+
+        for i, cb in enumerate(self.checkboxes):
+            # Устанавливаем новое состояние
+            current_state = cb.var.get()
+            if current_state != state:
+                # Имитируем нажатие на кнопку
+                self.on_check(i, cb, cb.var)
+            else:
+                # Просто обновляем внешний вид если состояние не изменилось
+                if state:
+                    cb.config(bg="green", relief="sunken")
+                else:
+                    cb.config(bg="red", relief="raised")
+
         self.lbl_count.config(text=f"Записей: {len(self.current_data)} | Активных: {len(self.active_rows)}")
 
     def invert_selection(self):
-        new_active = []
-        for i in range(len(self.current_data)):
-            if i not in self.active_rows:
-                new_active.append(i)
-                self.checkboxes[i].var.set(True)
-            else:
-                self.checkboxes[i].var.set(False)
-        self.active_rows = new_active
+        """Invert the current selection"""
+        for i, cb in enumerate(self.checkboxes):
+            # Имитируем нажатие на каждую кнопку
+            self.on_check(i, cb, cb.var)
+
         self.lbl_count.config(text=f"Записей: {len(self.current_data)} | Активных: {len(self.active_rows)}")
 
     def create_doc(self):
@@ -367,7 +370,8 @@ class App:
             if self.current_template == 2:
                 output = create_application_doc2(
                     num=num,
-                    date=date,
+                    date1=date,
+                    date2=self.date2,
                     table1_rows=table1_rows,
                     table1_data=active_data,
                     table2_data=self.table2_data,
@@ -377,7 +381,7 @@ class App:
             else:
                 output = create_application_doc(
                     num=num,
-                    date=date,
+                    date=self.date2,
                     table1_rows=table1_rows,
                     table1_data=active_data,
                     table2_data=self.table2_data,
@@ -402,7 +406,7 @@ class App:
             traceback.print_exc()  # Выведет полную ошибку в консоль
             messagebox.showerror("Ошибка", f"Не удалось создать документ:\n{str(e)}")
 
-    # Inside your App class, add a method to set up drag-and-drop:
+    # set up drag-and-drop:
     def setup_drag_and_drop(self):
         # Create a label or frame to act as a drag-and-drop target
         self.drop_label = tk.Label(self.root, text="Перетащите файл сюда", bg="#e0e0e0", height=4)
@@ -415,13 +419,18 @@ class App:
             # event.data contains the file path(s), possibly enclosed in braces if path contains spaces
             files = self.root.tk.splitlist(event.data)
             if files:
-                file_path = files[0]
-                self.load_file_from_path(file_path)
+                file_p = files[0]
+                self.load_file_from_path(file_path=file_p)
 
         # Bind the drop event
         self.drop_label.dnd_bind('<<Drop>>', on_drop)
 
-    def load_file_from_path(self, file_path):
+    def load_file_from_path(self, file_path=None):
+        if not file_path:
+            file_path = filedialog.askopenfilename(
+                title="Выберите Word документ",
+                filetypes=[("Word documents", "*.docx"), ("All files", "*.*")]
+            )
         try:
             self.file_path = file_path
             self.lbl_file.config(text=os.path.basename(file_path), fg="green")
@@ -435,8 +444,7 @@ class App:
                 self.entry_num.insert(0, info["номер заявки"])
 
             if info["дата обращения"]:
-                self.entry_date.delete(0, tk.END)
-                self.entry_date.insert(0, info["дата обращения"][:50])  # Limit length
+                self.date2 = info["дата обращения"]
 
             if info["таблица работ"]:
                 self.table2_data = info["таблица работ"]

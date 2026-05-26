@@ -114,7 +114,7 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
     table1.alignment = WD_TABLE_ALIGNMENT.CENTER
 
     # Заголовки таблицы
-    headers = ['№п/п', 'кол-во ПУ', 'тип ПУ', 'Адрес объекта', 'Примечания']
+    headers = ['порядковый номер', 'кол-во ПУ', 'тип ПУ', 'Адрес объекта', 'Примечания']
     for i, header in enumerate(headers):
         cell = table1.rows[0].cells[i]
         cell.text = ''
@@ -253,19 +253,19 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
             if table2_work:
                 row_data = table2_work.pop(0)
                 price_per_unit = clean_price_string(PR_WK_DICT[typ])
-                total_cost.append(int(row_data[3]) * price_per_unit)
+                total_cost.append(type_counter[typ] * price_per_unit)
 
-                equip_values = [
+                work_values = [
                     str(table2_p),
-                    EQUIP_DICT[typ],
+                    WORK_DICT[typ],
                     str(row_data[2]),
-                    str(row_data[3]),
+                    str(type_counter[typ]),
                     price_to_show(price_per_unit),
-                    price_to_show(int(row_data[3]) * price_per_unit)
+                    price_to_show(type_counter[typ] * price_per_unit)
                 ]
 
                 row = table2.add_row()
-                for col_idx, cell_data in enumerate(equip_values):
+                for col_idx, cell_data in enumerate(work_values):
                     cell = row.cells[col_idx]
                     cell.text = ''
                     para = cell.paragraphs[0]
@@ -321,15 +321,15 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
             if table2_equip:
                 row_data = table2_equip.pop(0)
                 price_per_unit = 0
-                total_cost.append(int(row_data[3]) * price_per_unit)
+                total_cost.append(type_counter[typ] * price_per_unit)
 
                 equip_values = [
                     str(table2_p),
                     EQUIP_DICT[typ],
                     str(row_data[2]),
-                    str(row_data[3]),
+                    type_counter[typ],
                     price_to_show(price_per_unit),
-                    price_to_show(int(row_data[3]) * price_per_unit)
+                    price_to_show(type_counter[typ] * price_per_unit)
                 ]
 
                 row = table2.add_row()

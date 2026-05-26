@@ -41,9 +41,10 @@ def find_info_in_doc(doc, path):
     dat = ""
     Temp = Form(path)
     equations = Temp.get_text()
-    eq_l = equations.split("\n")
+    eq_l = equations.replace("\n", '**').replace("\t", '**')
+    eq_l = eq_l.split("**")
     for el in eq_l:
-        if not el.strip():
+        if not el.strip().replace(' ', ''):
             eq_l.remove(el)
     for el in eq_l:
         if "овосибирск" in el.strip().lower():
@@ -62,7 +63,7 @@ def find_info_in_doc(doc, path):
             first_row_cells = [cell.text.strip().lower() for cell in table.rows[0].cells]
             first_row_text = " ".join(first_row_cells)
 
-            if ("наименование работ" in first_row_text) and "стоимость работ" in first_row_text:
+            if any([x in first_row_text for x in ["наименование", "работ", "стоимость"]]):
                 for i, row in enumerate(table.rows):
                     row_data = [cell.text.strip() for cell in row.cells]
                     if any(row_data) and not all(cell == "" for cell in row_data):
@@ -99,11 +100,10 @@ def find_info_in_doc(doc, path):
             el = full_l[i]
             if "работ:" in el.strip():
                 break
-            elif flag:
-                prep += [full_l[i].split()]
-            elif "адресам:" in el.strip():
+            elif flag and any([el.lower().startswith(x) for x in ["г", "п", "о", "1"]]):
+                prep += [el.split()]
+            elif "адрес" in el.strip().lower() and "объект" in el.strip().lower():
                 flag = True
-
 
         tab_data = []
         ind_num = 0
@@ -169,8 +169,3 @@ def open_file(path):
     return info
 
 
-# TODO названия работ и оборудования брать из таблицы вход. файла
-# TODO заговнокодить ценники
-# TODO разобраться с парсингом текста вместо таблицы
-# TODO пофиксить обработку нулевых данных ВЕЗДЕ
-# TODO сделать генерацию выход. файла модульной для избежания ошибки генерации из-за ошибок вход. ф.
