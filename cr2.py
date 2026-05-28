@@ -290,15 +290,15 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
             if table2_work:
                 row_data = table2_work.pop(0)
                 price_per_unit = clean_price_string(PR_WK_DICT[typ])
-                total_cost.append(type_counter[typ] * price_per_unit)
+                total_cost.append(int(row_data[3]) * price_per_unit)
 
                 work_values = [
                     str(table2_p),
                     WORK_DICT[typ],
                     str(row_data[2]),
-                    str(type_counter[typ]),
+                    row_data[3],
                     price_to_show(price_per_unit),
-                    price_to_show(type_counter[typ] * price_per_unit)
+                    price_to_show(int(row_data[3]) * price_per_unit)
                 ]
 
                 row = table2.add_row()
@@ -385,15 +385,15 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
             if table2_equip:
                 row_data = table2_equip.pop(0)
                 price_per_unit = clean_price_string(PR_EQ_DICT[typ])
-                total_cost.append(type_counter[typ] * price_per_unit)
+                total_cost.append(int(row_data[3]) * price_per_unit)
 
                 equip_values = [
                     str(table2_p),
                     EQUIP_DICT[typ],
                     str(row_data[2]),
-                    type_counter[typ],
+                    str(row_data[3]),
                     price_to_show(price_per_unit),
-                    price_to_show(type_counter[typ] * price_per_unit)
+                    price_to_show(int(row_data[3]) * price_per_unit)
                 ]
 
                 row = table2.add_row()

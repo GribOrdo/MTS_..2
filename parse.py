@@ -92,20 +92,25 @@ def find_info_in_doc(doc, path):
                     if any(row_data) and not all(cell == "" for cell in row_data):
                         info["адреса объектов"].append(row_data)
                 break
+
     prep = []
     flag = False
     if not info["адреса объектов"]:
-        full_l = full_text.split("\n")
+        full_l = full_text.split("\n")    #
         for i in range(len(full_l)):
             el = full_l[i]
             if "работ:" in el.strip():
                 break
-            elif flag and any([el.lower().startswith(x) for x in ["г", "п", "о", "1"]]):
+            elif flag and any([x in el.lower() for x in ["г.", "п.", "о.", "1.", "с.",
+                                                         "город", "посел", "област", "сел", "пгт"]]):
                 prep += [el.split()]
             elif "адрес" in el.strip().lower() and "объект" in el.strip().lower():
                 flag = True
+                if any([x in el.lower() for x in ["г.", "п.", "о.", "1.", "с.",
+                                                  "город", "посел", "област", "сел", "пгт"]]):
+                    prep += [el.split(":")[1].strip().split()]
 
-        tab_data = []
+        tab_data = []    #
         ind_num = 0
         pu_num = int(info["таблица работ"][1][3]) // len(prep)
         typ_py = ""
@@ -115,15 +120,14 @@ def find_info_in_doc(doc, path):
             ind_num += 1
 
             for row in info["таблица работ"]:
+                if "оборудование" in row[0].lower().strip():
+                    break
                 if "однофазн" in row[1]:
-                    typ_py = "1ф"
-                    break
+                    typ_py += "1ф" if "1ф" not in typ_py else ""
                 if ("трехфазн" in row[1]) and any([w in row[1] for w in ["непосредств", "прям"]]):
-                    typ_py = "3ф ПР"
-                    break
+                    typ_py += "3ф ПР" if "3ф ПР" not in typ_py else ""
                 if ("трехфазн" in row[1]) and any([w in row[1] for w in ["полукосвенн", "трансформаторн"]]):
-                    typ_py = "3ф ПК"
-                    break
+                    typ_py += "3ф ПК" if "3ф ПК" not in typ_py else ""
 
             for sub in el:
                 if "кв." == sub.strip().lower():
@@ -131,12 +135,16 @@ def find_info_in_doc(doc, path):
                     adress = " ".join(el[:ind+2])
                     if len(el) >= ind+3:
                         addit = " ".join(el[ind+2:])
+            if not adress:
+                adress = " ".join(el)
+
+            if sum([typ_py.count(x) for x in ["1ф", "3ф ПР", "3ф ПК"]]) > 1:
+                typ_py = "несколько"
+                pu_num = "несколько"
 
             tab_row = [str(ind_num), str(pu_num), typ_py, adress, addit]
             tab_data += [tab_row]
         info["адреса объектов"] = tab_data
-
-
 
     print(info["адреса объектов"])
     return info

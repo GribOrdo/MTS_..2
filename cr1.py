@@ -182,7 +182,6 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
         if ("трехфазн" in eq[1]) and any([w in eq[1] for w in ["полукосвенн", "трансформаторн"]]):
             EQUIP_DICT["3ф ПК"] = eq[1].strip()
 
-
     # Раздел 2: Перечень работ
     add_formatted_paragraph(doc, '\t2. Перечень работ:', size=11)
 
@@ -253,15 +252,15 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
             if table2_work:
                 row_data = table2_work.pop(0)
                 price_per_unit = clean_price_string(PR_WK_DICT[typ])
-                total_cost.append(type_counter[typ] * price_per_unit)
+                total_cost.append(int(row_data[3]) * price_per_unit)
 
                 work_values = [
                     str(table2_p),
                     WORK_DICT[typ],
                     str(row_data[2]),
-                    str(type_counter[typ]),
+                    str(row_data[3]),
                     price_to_show(price_per_unit),
-                    price_to_show(type_counter[typ] * price_per_unit)
+                    price_to_show(int(row_data[3]) * price_per_unit)
                 ]
 
                 row = table2.add_row()
@@ -327,9 +326,9 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
                     str(table2_p),
                     EQUIP_DICT[typ],
                     str(row_data[2]),
-                    type_counter[typ],
+                    str(row_data[3]),
                     price_to_show(price_per_unit),
-                    price_to_show(type_counter[typ] * price_per_unit)
+                    price_to_show(int(row_data[3]) * price_per_unit)
                 ]
 
                 row = table2.add_row()
@@ -381,7 +380,8 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
 
     # Пункт 3
     para3 = doc.add_paragraph()
-    run3 = para3.add_run('3. Требования к составу материалов и оборудования: Договором предусмотрено давальческие материалы/оборудование в составе (Заполняется при наличии давальческих материалов/оборудования):')
+    run3 = para3.add_run(
+        '3. Требования к составу материалов и оборудования: Договором предусмотрено давальческие материалы/оборудование в составе (Заполняется при наличии давальческих материалов/оборудования):')
     run3.font.name = 'Times New Roman'
     run3.font.size = Pt(12)
     # Таблица давальческих материалов
@@ -446,6 +446,6 @@ def create_application_doc(num, date, table1_rows, table1_data, table2_data, dat
     # Сохранение документа
     output_path = 'out1.docx'
     doc.save(output_path)
-    print(f"Документ сохранен как: {output_path}")
+
 
     return output_path

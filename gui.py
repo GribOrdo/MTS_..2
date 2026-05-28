@@ -8,7 +8,7 @@ from cr1 import create_application_doc
 from cr1 import price_to_show
 from cr2 import create_application_doc2
 import datetime
-
+from PIL import Image, ImageTk
 
 
 class App:
@@ -96,6 +96,11 @@ class App:
         tk.Button(top_frame, text="Создать документ", command=self.create_doc,
                   bg="#4CAF50", fg="white", font=("Arial", 11, "bold"),
                   height=2, width=20).pack(side=tk.RIGHT, padx=5)
+        pil_image = Image.open("mts_ebany_chisty.png").resize((64, 64), Image.Resampling.LANCZOS)
+        tk_image = ImageTk.PhotoImage(pil_image)
+        b_image = tk.Button(top_frame, image=tk_image)
+        b_image.pack(side=tk.RIGHT, padx=10)
+        b_image.image = tk_image
 
         # Параметры
         param_frame = tk.Frame(self.root)
@@ -132,7 +137,7 @@ class App:
                   bg="#607D8B", fg="white", width=10).pack(side=tk.RIGHT, padx=2)
         tk.Button(ctrl_frame, text="❌ Ничего", command=lambda: self.toggle_all(False),
                   bg="#607D8B", fg="white", width=10).pack(side=tk.RIGHT, padx=2)
-        tk.Button(ctrl_frame, text="🔄 Инвертировать", command=self.invert_selection,
+        tk.Button(ctrl_frame, text="🔄 Инверт.", command=self.invert_selection,
                   bg="#607D8B", fg="white", width=10).pack(side=tk.RIGHT, padx=2)
 
         # Таблица с чекбоксами
@@ -432,8 +437,12 @@ class App:
                 filetypes=[("Word documents", "*.docx"), ("All files", "*.*")]
             )
         try:
+            if not file_path:
+                return
             self.file_path = file_path
-            self.lbl_file.config(text=os.path.basename(file_path), fg="green")
+            sys_name = os.path.basename(file_path)
+            for_name = sys_name if len(sys_name) < 15 else sys_name[:15] + '...'
+            self.lbl_file.config(text=for_name, fg="green")
             # Your existing logic to process the file
             doc = Document(file_path)
             info = find_info_in_doc(doc, file_path)
