@@ -24,7 +24,8 @@ def find_info_in_doc(doc, path):
         "таблица работ": [],
         "суммарная стоимость": 0,
         "дата выполнения": "",
-        "адреса объектов": []
+        "адреса объектов": [],
+        "режим": 1
     }
 
     # === Извлечение текста из параграфов ===
@@ -145,6 +146,7 @@ def find_info_in_doc(doc, path):
             tab_row = [str(ind_num), str(pu_num), typ_py, adress, addit]
             tab_data += [tab_row]
         info["адреса объектов"] = tab_data
+        info["режим"] = 0
 
     print(info["адреса объектов"])
     return info

@@ -537,9 +537,8 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
     # Подписи
     cell_left_sign = sign_table.rows[1].cells[0]
     cell_left_sign.text = ''
-    for text_line in ['ПАО «МТС»\n', '', 'Директор Департамента по работе',
-                      'с корпоративными клиентами\n', '',
-                      '____________________/ Ватуля Е.Н. /', '', 'м.п.']:
+    for text_line in ['ПАО «МТС»\n', '', 'Ведущий специалист Группы Выпуска Реги ональных Счетов и Корреспонденции\n', '',
+                      '____________________/ Ложкин М.М. /', '', 'м.п.']:
         if text_line:
             p = cell_left_sign.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
