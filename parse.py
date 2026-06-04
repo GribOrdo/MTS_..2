@@ -117,34 +117,46 @@ def find_info_in_doc(doc, path):
         typ_py = ""
         adress = ""
         addit = ""
-        for el in prep:
-            ind_num += 1
 
-            for row in info["таблица работ"]:
-                if "оборудование" in row[0].lower().strip():
-                    break
+        for el in prep:
+
+            table2 = info["таблица работ"][1:-2]  # Убираем первые 2 и последние 2 элемента
+            if table2[0][1].strip() == "":
+                table2.remove(table2[0])
+            mid_point = len(table2) // 2
+            table2_work = table2[:mid_point]  # Данные работ
+
+            type_counter = {"1ф": 0, "3ф ПР": 0, "3ф ПК": 0}
+            for row in table2_work:
                 if "однофазн" in row[1]:
-                    typ_py += "1ф" if "1ф" not in typ_py else ""
+                    type_counter["1ф"] += 1
                 if ("трехфазн" in row[1]) and any([w in row[1] for w in ["непосредств", "прям"]]):
-                    typ_py += "3ф ПР" if "3ф ПР" not in typ_py else ""
+                    type_counter["3ф ПР"] += 1
                 if ("трехфазн" in row[1]) and any([w in row[1] for w in ["полукосвенн", "трансформаторн"]]):
-                    typ_py += "3ф ПК" if "3ф ПК" not in typ_py else ""
+                    type_counter["3ф ПК"] += 1
 
             for sub in el:
                 if "кв." == sub.strip().lower():
                     ind = el.index(sub)
-                    adress = " ".join(el[:ind+2])
-                    if len(el) >= ind+3:
-                        addit = " ".join(el[ind+2:])
+                    adress = " ".join(el[:ind + 2])
+                    if len(el) >= ind + 3:
+                        addit = " ".join(el[ind + 2:])
             if not adress:
                 adress = " ".join(el)
 
-            if sum([typ_py.count(x) for x in ["1ф", "3ф ПР", "3ф ПК"]]) > 1:
-                typ_py = "несколько"
-                pu_num = "несколько"
+            for typ in list(type_counter.keys()):
+                if type_counter[typ]:
+                    ind_num += 1
+                    row = table2_work.pop()
+                    typ_py = typ
 
-            tab_row = [str(ind_num), str(pu_num), typ_py, adress, addit]
-            tab_data += [tab_row]
+                    pu_num = row[3]
+
+                    tab_row = [str(ind_num), str(pu_num), typ_py, adress, addit]
+                    tab_data += [tab_row]
+
+
+
         info["адреса объектов"] = tab_data
         info["режим"] = 0
 
