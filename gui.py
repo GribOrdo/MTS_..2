@@ -60,7 +60,6 @@ class ModernApp:
         self.bold_font = None
         self.main_font = None
         self.drag_label = None
-        self.drag_overlay = None
         self.date2 = None
         self.current_data = []
         self.active_rows = []
