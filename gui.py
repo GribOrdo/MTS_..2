@@ -1,4 +1,3 @@
-
 try:
     from CTkScrollableDropdown import *
 except:
@@ -17,7 +16,7 @@ from font_manager import font_manager
 import sys
 from tkinterdnd2 import DND_FILES, TkinterDnD
 
-import tkinter as tk   # Import tkinter for TclError
+import tkinter as tk  # Import tkinter for TclError
 
 # Setup customtkinter theme
 ctk.set_appearance_mode(THEME["appearance_mode"])
@@ -29,6 +28,7 @@ ctk.ThemeManager.theme["CTkButton"]["fg_color"] = COLORS["red"]
 ctk.ThemeManager.theme["CTkButton"]["hover_color"] = COLORS["cyan"]
 ctk.ThemeManager.theme["CTkLabel"]["text_color"] = COLORS["white"]
 
+
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -37,6 +37,7 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
 
 class ModernApp:
     def __init__(self):
@@ -97,6 +98,10 @@ class ModernApp:
 
         self.root = TkinterDnD.Tk()
 
+        # Явно устанавливаем непрозрачность окна
+        self.root.attributes('-alpha', 1.0)
+        self.root.attributes('-topmost', False)
+
         self.root.title(self.texts["app_title"])
         self.root.geometry(f"{SIZES['window_width']}x{SIZES['window_height']}")
         self.root.minsize(1000, 600)
@@ -141,6 +146,8 @@ class ModernApp:
         """Handler for cursor entering window with file"""
         if not self.drag_hover:
             self.drag_hover = True
+            # Обеспечиваем непрозрачность при входе с файлом
+            self.root.attributes('-alpha', 1.0)
             if not self.drag_overlay:
                 self.drag_overlay = ctk.CTkFrame(
                     self.root,
@@ -166,12 +173,17 @@ class ModernApp:
         self.drag_hover = False
         if self.drag_overlay:
             self.drag_overlay.place_forget()
+        # Восстанавливаем непрозрачность
+        self.root.attributes('-alpha', 1.0)
 
     def on_drop(self, event):
         """Handler for dropping file in window"""
         self.drag_hover = False
         if self.drag_overlay:
             self.drag_overlay.place_forget()
+
+        # Обеспечиваем непрозрачность после дропа
+        self.root.attributes('-alpha', 1.0)
 
         file_path = event.data
 
@@ -250,6 +262,9 @@ class ModernApp:
                 "table_row2": self.table_row_colors["light"][1]
             }
 
+        # Обеспечиваем непрозрачность после применения темы
+        self.root.attributes('-alpha', 1.0)
+
     def toggle_theme(self):
         """Toggle between dark and light theme"""
         self.is_dark_theme = not self.is_dark_theme
@@ -278,6 +293,9 @@ class ModernApp:
 
         # Update UI state
         self.update_ui_state()
+
+        # Обеспечиваем непрозрачность после переключения темы
+        self.root.attributes('-alpha', 1.0)
 
     def rebuild_ui(self):
         """Rebuild UI when theme changes"""
@@ -334,6 +352,9 @@ class ModernApp:
         self.labels = []
 
         self.setup_ui()
+
+        # Обеспечиваем непрозрачность после перестроения UI
+        self.root.attributes('-alpha', 1.0)
 
     def update_ui_state(self):
         """Update UI state after rebuild"""
@@ -657,6 +678,10 @@ class ModernApp:
         )
         self.ctrl_frame.grid(row=3, column=0, sticky="ew", pady=(0, SIZES["padding"]["small"]))
 
+        # Показываем или скрываем панель управления в зависимости от режима
+        if self.current_mode == 0:
+            self.ctrl_frame.grid_remove()
+
         self.lbl_count = ctk.CTkLabel(
             self.ctrl_frame,
             text=self.texts["records_count"].format(0, 0),
@@ -811,6 +836,9 @@ class ModernApp:
         self.checkboxes = []
         self.quantity_comboboxes = []
 
+        # Обеспечиваем непрозрачность при обновлении таблицы
+        self.root.attributes('-alpha', 1.0)
+
         if self.current_mode == 0:
             self.update_table_text_mode()
             # Hide control panel for text mode
@@ -851,9 +879,13 @@ class ModernApp:
             if TABLE_SETTINGS["alternating_row_colors"]:
                 bg_color = self.current_colors["table_row1"] if row_idx % 2 == 0 else self.current_colors["table_row2"]
             else:
-                bg_color = "transparent"
+                bg_color = self.current_colors["bg"]  # Используем основной фон вместо transparent
 
-            row_frame = ctk.CTkFrame(self.data_frame, fg_color=bg_color, corner_radius=0)
+            row_frame = ctk.CTkFrame(
+                self.data_frame,
+                fg_color=bg_color,
+                corner_radius=0
+            )
             row_frame.pack(fill=ctk.X)
 
             # Configure grid columns to be centered
@@ -872,13 +904,25 @@ class ModernApp:
                 text_color=self.current_colors["entry_text"],
                 button_color=self.current_colors["accent"],
                 button_hover_color=self.current_colors["hover"],
+                border_color=self.current_colors["entry_border"],
+                dropdown_fg_color=self.current_colors["entry_bg"],
+                dropdown_text_color=self.current_colors["entry_text"],
+                dropdown_hover_color=self.current_colors["hover"],
                 font=self.main_font,
                 dropdown_font=self.main_font,
                 state="readonly"
             )
             quantity_combobox.set(str(eq_data["max_quantity"]))  # Default to max quantity
             quantity_combobox.grid(row=0, column=0, padx=5, pady=5)
-            CTkScrollableDropdown(quantity_combobox, values=quantity_values, button_color="transparent")
+
+            # Создаем выпадающий список с правильными цветами
+            CTkScrollableDropdown(
+                quantity_combobox,
+                values=quantity_values,
+                button_color=self.current_colors["entry_bg"],
+                text_color=self.current_colors["entry_text"],
+                hover_color=self.current_colors["hover"]
+            )
 
             self.quantity_comboboxes.append(quantity_combobox)
 
@@ -972,7 +1016,7 @@ class ModernApp:
             if TABLE_SETTINGS["alternating_row_colors"]:
                 bg_color = self.current_colors["table_row1"] if row_idx % 2 == 0 else self.current_colors["table_row2"]
             else:
-                bg_color = "transparent"
+                bg_color = self.current_colors["bg"]  # Используем основной фон вместо transparent
 
             row_frame = ctk.CTkFrame(self.data_frame, fg_color=bg_color, corner_radius=0)
             row_frame.pack(fill=ctk.X)
@@ -1060,16 +1104,25 @@ class ModernApp:
         if self.lbl_mode:
             self.lbl_mode.configure(text=f"{self.texts['current_mode']} {mode_text}")
 
+        # Обеспечиваем непрозрачность при переключении режимов
+        self.root.attributes('-alpha', 1.0)
+
         if mode_num == 1:
             if self.btn_mode_table:
                 self.btn_mode_table.configure(fg_color=self.current_colors["accent"])
             if self.btn_mode_text:
                 self.btn_mode_text.configure(fg_color=self.current_colors["bg"])
+            # Показываем панель управления для табличного режима
+            if self.ctrl_frame:
+                self.ctrl_frame.grid()
         else:
             if self.btn_mode_table:
                 self.btn_mode_table.configure(fg_color=self.current_colors["bg"])
             if self.btn_mode_text:
                 self.btn_mode_text.configure(fg_color=self.current_colors["accent"])
+            # Скрываем панель управления для текстового режима
+            if self.ctrl_frame:
+                self.ctrl_frame.grid_remove()
 
         if update_ui and hasattr(self, 'current_data') and (self.current_data or self.aggregated_data):
             if mode_num == 0 and self.current_data:
@@ -1107,6 +1160,8 @@ class ModernApp:
 
     def load_file_from_path(self, file_path=None, update_ui=True):
         """Load file"""
+        # Обеспечиваем непрозрачность перед загрузкой файла
+        self.root.attributes('-alpha', 1.0)
 
         if not file_path:
             file_path = filedialog.askopenfilename(
@@ -1146,16 +1201,20 @@ class ModernApp:
             # ВАЖНО: Добавляем агрегацию данных и обновление таблицы для текстового режима
             if self.current_mode == 0:
                 self.aggregated_data = self.aggregate_data(self.current_data)
+
             if update_ui:
                 self.update_table()
-            else:
-                if update_ui:
-                    self.update_table()
+
+            # Еще раз обеспечиваем непрозрачность после загрузки
+            self.root.attributes('-alpha', 1.0)
+            self.root.update()
 
         except Exception as e:
             import traceback
             traceback.print_exc()
             messagebox.showerror(self.texts["error"], self.texts["load_error"].format(str(e)))
+            # Обеспечиваем непрозрачность даже при ошибке
+            self.root.attributes('-alpha', 1.0)
 
     def create_doc(self):
         """Create document"""
