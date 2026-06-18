@@ -979,6 +979,7 @@ class ModernApp:
                 font=self.main_font,
                 width=col_widths[5],
                 anchor="center",
+                wraplength=col_widths[4] - 20,
                 text_color=self.current_colors["text"]
             )
             info_label.grid(row=0, column=5, padx=5, pady=5)
