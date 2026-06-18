@@ -1,7 +1,11 @@
-try:
-    from CTkScrollableDropdown import *
-except:
-    pass
+
+from ctk_scrollable_dropdown import CTkScrollableDropdown
+from tkinter import filedialog, messagebox
+import os
+from docx import Document
+from parse import find_info_in_doc
+from cr1 import create_application_doc, price_to_show
+from cr2 import create_application_doc2
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
