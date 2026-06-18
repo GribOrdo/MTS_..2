@@ -1,19 +1,8 @@
 
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-
-
 try:
     from CTkScrollableDropdown import *
 except:
-    new_path = resource_path("CTkScrollableDropdown")
-    from new_path import *
+    pass
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
@@ -40,9 +29,14 @@ ctk.ThemeManager.theme["CTkButton"]["fg_color"] = COLORS["red"]
 ctk.ThemeManager.theme["CTkButton"]["hover_color"] = COLORS["cyan"]
 ctk.ThemeManager.theme["CTkLabel"]["text_color"] = COLORS["white"]
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
 
-
-
+    return os.path.join(base_path, relative_path)
 
 class ModernApp:
     def __init__(self):
@@ -937,7 +931,7 @@ class ModernApp:
             # Additional info
             info_label = ctk.CTkLabel(
                 row_frame,
-                text=f'{eq_data['notes']}'[1:-1],
+                text=f"{eq_data['notes']}"[1:-1],
                 font=self.main_font,
                 width=col_widths[5],
                 anchor="center",
