@@ -1,3 +1,19 @@
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
+try:
+    from CTkScrollableDropdown import *
+except:
+    new_path = resource_path("CTkScrollableDropdown")
+    from new_path import *
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
@@ -12,6 +28,8 @@ from font_manager import font_manager
 import sys
 from tkinterdnd2 import DND_FILES, TkinterDnD
 
+import tkinter as tk   # Import tkinter for TclError
+
 # Setup customtkinter theme
 ctk.set_appearance_mode(THEME["appearance_mode"])
 ctk.set_default_color_theme("blue")
@@ -23,19 +41,12 @@ ctk.ThemeManager.theme["CTkButton"]["hover_color"] = COLORS["cyan"]
 ctk.ThemeManager.theme["CTkLabel"]["text_color"] = COLORS["white"]
 
 
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
 
-    return os.path.join(base_path, relative_path)
 
 
 class ModernApp:
     def __init__(self):
-
+        # Initialize attributes to prevent NoneType errors
         self.btn_frame = None
         self.lbl_count = None
         self.ctrl_frame = None
@@ -60,6 +71,9 @@ class ModernApp:
         self.bold_font = None
         self.main_font = None
         self.drag_label = None
+        self.drag_overlay = None
+        self._resize_job = None  # For debouncing resize events
+
         self.date2 = None
         self.current_data = []
         self.active_rows = []
@@ -93,20 +107,34 @@ class ModernApp:
         self.root.geometry(f"{SIZES['window_width']}x{SIZES['window_height']}")
         self.root.minsize(1000, 600)
 
+        # --- CHANGED: Do not configure root bg here ---
+        # self.root.configure(bg=COLORS["black"])
+        # --- ---
+        self.root.bind('<Configure>', self._on_window_resize)
         # Setup drag-n-drop for entire window (if available)
         self.setup_drag_and_drop()
-
         # Apply initial theme
         self.apply_theme()
-
         # Load and setup fonts
         self.setup_fonts()
-
         # Setup UI
         self.setup_ui()
-
         # Bind window close handler
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def _on_window_resize(self, event):
+        """Handle window resize with debouncing to prevent lag"""
+        if event.widget == self.root:
+            if self._resize_job is not None:
+                self.root.after_cancel(self._resize_job)
+            self._resize_job = self.root.after(100, self._do_resize)
+
+    def _do_resize(self):
+        """Actually perform resize operations"""
+        self._resize_job = None
+        # Update table layout if needed
+        if hasattr(self, 'table_frame'):
+            self.root.update_idletasks()
 
     def setup_drag_and_drop(self):
         """Setup drag-n-drop functionality"""
@@ -119,7 +147,7 @@ class ModernApp:
         """Handler for cursor entering window with file"""
         if not self.drag_hover:
             self.drag_hover = True
-            if not hasattr(self, 'drag_overlay'):
+            if not self.drag_overlay:
                 self.drag_overlay = ctk.CTkFrame(
                     self.root,
                     fg_color="#000000",
@@ -127,7 +155,7 @@ class ModernApp:
                 )
             self.drag_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-            if not hasattr(self, 'drag_label'):
+            if not self.drag_label:
                 self.drag_label = ctk.CTkLabel(
                     self.drag_overlay,
                     text="📁 Файл сюда\n(.docx)",
@@ -142,13 +170,13 @@ class ModernApp:
     def on_drag_leave(self, event):
         """Handler for cursor leaving window"""
         self.drag_hover = False
-        if hasattr(self, 'drag_overlay'):
+        if self.drag_overlay:
             self.drag_overlay.place_forget()
 
     def on_drop(self, event):
         """Handler for dropping file in window"""
         self.drag_hover = False
-        if hasattr(self, 'drag_overlay'):
+        if self.drag_overlay:
             self.drag_overlay.place_forget()
 
         file_path = event.data
@@ -189,10 +217,12 @@ class ModernApp:
         """Apply current theme"""
         if self.is_dark_theme:
             ctk.set_appearance_mode("dark")
-            try:
-                self.root.configure(bg=COLORS["black"])
-            except:
-                pass
+            # --- CHANGED: Remove root configure bg ---
+            # try:
+            #     self.root.configure(bg=COLORS["black"])
+            # except:
+            #     pass
+            # --- ---
             self.current_colors = {
                 "bg": COLORS["black"],
                 "fg": COLORS["white"],
@@ -207,10 +237,12 @@ class ModernApp:
             }
         else:
             ctk.set_appearance_mode("light")
-            try:
-                self.root.configure(bg=COLORS["white"])
-            except:
-                pass
+            # --- CHANGED: Remove root configure bg ---
+            # try:
+            #     self.root.configure(bg=COLORS["white"])
+            # except:
+            #     pass
+            # --- ---
             self.current_colors = {
                 "bg": COLORS["white"],
                 "fg": COLORS["black"],
@@ -255,8 +287,58 @@ class ModernApp:
 
     def rebuild_ui(self):
         """Rebuild UI when theme changes"""
-        for widget in self.root.winfo_children():
-            widget.destroy()
+        # Clear all widgets properly
+        if self.drag_overlay:
+            try:
+                self.drag_overlay.destroy()
+            except tk.TclError:
+                pass  # Already destroyed or invalid
+            self.drag_overlay = None
+        if self.drag_label:
+            try:
+                self.drag_label.destroy()
+            except tk.TclError:
+                pass  # Already destroyed or invalid
+            self.drag_label = None
+        self.drag_hover = False  # Reset drag state
+
+        # --- Clear all widgets properly ---
+        children = list(self.root.winfo_children())
+        for widget in children:
+            try:
+                widget.destroy()
+            except tk.TclError:
+                pass
+
+        # Reset widget references
+        self.btn_frame = None
+        self.lbl_count = None
+        self.ctrl_frame = None
+        self.lbl_mode = None
+        self.lbl_template = None
+        self.entry_date = None
+        self.entry_num = None
+        self.btn_mode_text = None
+        self.btn_mode_table = None
+        self.btn_template2 = None
+        self.btn_template1 = None
+        self.btn_create = None
+        self.btn_theme = None
+        self.lbl_file = None
+        self.btn_select = None
+        self.top_frame = None
+        self.main_container = None
+        self.logo_label = None
+        self.logo_image = None
+        self.logo_frame = None
+        self.drag_label = None
+        self.drag_overlay = None
+
+        # Reset lists
+        self.checkboxes = []
+        self.quantity_comboboxes = []
+        self.labels = []
+
         self.setup_ui()
 
     def update_ui_state(self):
@@ -277,12 +359,15 @@ class ModernApp:
 
     def setup_logo(self):
         """Setup logo in top right corner"""
+        if self.logo_frame:
+            self.logo_frame.destroy()
+
         self.logo_frame = ctk.CTkFrame(
             self.root,
             fg_color="transparent",
             height=80
         )
-        self.logo_frame.place(relx=1.0, x=-20, y=20, anchor="ne")
+        self.logo_frame.place(relx=1.0, x=0, y=0, anchor="ne")
         logo_path = resource_path(RESOURCES["logo"])
 
         if os.path.exists(logo_path):
@@ -295,6 +380,8 @@ class ModernApp:
                     dark_image=pil_image,
                     size=pil_image.size
                 )
+                if self.logo_label:
+                    self.logo_label.destroy()
                 self.logo_label = ctk.CTkLabel(
                     self.logo_frame,
                     image=self.logo_image,
@@ -309,6 +396,8 @@ class ModernApp:
 
     def _show_logo_text(self):
         """Show text instead of logo"""
+        if self.logo_label:
+            self.logo_label.destroy()
         self.logo_label = ctk.CTkLabel(
             self.logo_frame,
             text="Logo",
@@ -319,13 +408,19 @@ class ModernApp:
 
     def setup_ui(self):
         """Setup UI"""
+        # Clear existing container if it exists
+        if hasattr(self, 'main_container') and self.main_container:
+            self.main_container.destroy()
+
         self.main_container = ctk.CTkFrame(
             self.root,
             fg_color=self.current_colors["bg"],
             corner_radius=0
         )
-        self.main_container.pack(fill="both", expand=True, padx=SIZES["padding"]["large"],
-                                 pady=SIZES["padding"]["large"])
+        # --- CHANGED: Set padx and pady to 0 ---
+        # self.main_container.pack(fill="both", expand=True, padx=SIZES["padding"]["large"], pady=SIZES["padding"]["large"])
+        self.main_container.pack(fill="both", expand=True, padx=0, pady=0)
+        # --- ---
 
         self.main_container.grid_rowconfigure(4, weight=1)
         self.main_container.grid_columnconfigure(0, weight=1)
@@ -599,6 +694,9 @@ class ModernApp:
             ).pack(side=ctk.LEFT, padx=SIZES["padding"]["small"])
 
         # Table
+        if hasattr(self, 'table_container') and self.table_container:
+            self.table_container.destroy()
+
         self.table_container = ctk.CTkFrame(
             self.main_container,
             fg_color=self.current_colors["bg"],
@@ -651,7 +749,7 @@ class ModernApp:
 
     def create_table(self):
         """Create table"""
-        if hasattr(self, 'table_frame'):
+        if hasattr(self, 'table_frame') and self.table_frame:
             self.table_frame.destroy()
 
         self.table_frame = ctk.CTkScrollableFrame(
@@ -711,9 +809,10 @@ class ModernApp:
 
     def update_table(self):
         """Update table with current theme colors"""
-        # Clear existing widgets
-        for widget in self.data_frame.winfo_children():
-            widget.destroy()
+        # Clear existing widgets properly
+        if hasattr(self, 'data_frame') and self.data_frame:
+            for widget in self.data_frame.winfo_children():
+                widget.destroy()
 
         self.checkboxes = []
         self.quantity_comboboxes = []
@@ -721,11 +820,13 @@ class ModernApp:
         if self.current_mode == 0:
             self.update_table_text_mode()
             # Hide control panel for text mode
-            self.ctrl_frame.grid_remove()
+            if self.ctrl_frame:
+                self.ctrl_frame.grid_remove()
         else:
             self.update_table_table_mode()
             # Show control panel for table mode
-            self.ctrl_frame.grid()
+            if self.ctrl_frame:
+                self.ctrl_frame.grid()
 
     def update_table_text_mode(self):
         """Update table in 'text' mode - dropdowns with quantity selection"""
@@ -771,7 +872,6 @@ class ModernApp:
             quantity_var = ctk.StringVar(value=str(eq_data["max_quantity"]))
             quantity_combobox = ctk.CTkComboBox(
                 row_frame,
-                values=quantity_values,
                 variable=quantity_var,
                 width=col_widths[0] - 20,
                 fg_color=self.current_colors["entry_bg"],
@@ -784,6 +884,7 @@ class ModernApp:
             )
             quantity_combobox.set(str(eq_data["max_quantity"]))  # Default to max quantity
             quantity_combobox.grid(row=0, column=0, padx=5, pady=5)
+            CTkScrollableDropdown(quantity_combobox, values=quantity_values, button_color="transparent")
 
             self.quantity_comboboxes.append(quantity_combobox)
 
@@ -836,7 +937,7 @@ class ModernApp:
             # Additional info
             info_label = ctk.CTkLabel(
                 row_frame,
-                text=f"Всего: {eq_data['total_quantity']}",
+                text=f'{eq_data['notes']}'[1:-1],
                 font=self.main_font,
                 width=col_widths[5],
                 anchor="center",
@@ -845,9 +946,10 @@ class ModernApp:
             info_label.grid(row=0, column=5, padx=5, pady=5)
 
         # Update count label
-        self.lbl_count.configure(
-            text=f"Equipment types: {len(self.aggregated_data)} | Select quantity for each type"
-        )
+        if self.lbl_count:
+            self.lbl_count.configure(
+                text=f"Equipment types: {len(self.aggregated_data)} | Select quantity for each type"
+            )
 
     def update_table_table_mode(self):
         """Update table in 'table' mode"""
@@ -917,9 +1019,10 @@ class ModernApp:
                     )
                     lbl.grid(row=0, column=col_idx + 1, padx=5, pady=2, sticky="")
 
-        self.lbl_count.configure(text=self.texts["records_count"].format(
-            len(self.current_data), len(self.active_rows)
-        ))
+        if self.lbl_count:
+            self.lbl_count.configure(text=self.texts["records_count"].format(
+                len(self.current_data), len(self.active_rows)
+            ))
 
     def on_check_table_mode(self, row, var):
         """Handler for checkbox state change in table mode"""
@@ -931,21 +1034,27 @@ class ModernApp:
                 self.active_rows.remove(row)
 
         self.active_rows.sort()
-        self.lbl_count.configure(text=self.texts["records_count"].format(
-            len(self.current_data), len(self.active_rows)
-        ))
+        if self.lbl_count:
+            self.lbl_count.configure(text=self.texts["records_count"].format(
+                len(self.current_data), len(self.active_rows)
+            ))
 
     def switch_template(self, template_num, update_ui=True):
         """Switch template"""
         self.current_template = template_num
-        self.lbl_template.configure(text=f"{self.texts['current_template']} {template_num}")
+        if self.lbl_template:
+            self.lbl_template.configure(text=f"{self.texts['current_template']} {template_num}")
 
         if template_num == 1:
-            self.btn_template1.configure(fg_color=self.current_colors["accent"])
-            self.btn_template2.configure(fg_color=self.current_colors["bg"])
+            if self.btn_template1:
+                self.btn_template1.configure(fg_color=self.current_colors["accent"])
+            if self.btn_template2:
+                self.btn_template2.configure(fg_color=self.current_colors["bg"])
         else:
-            self.btn_template1.configure(fg_color=self.current_colors["bg"])
-            self.btn_template2.configure(fg_color=self.current_colors["accent"])
+            if self.btn_template1:
+                self.btn_template1.configure(fg_color=self.current_colors["bg"])
+            if self.btn_template2:
+                self.btn_template2.configure(fg_color=self.current_colors["accent"])
 
         if update_ui and hasattr(self, 'current_data') and (self.current_data or self.aggregated_data):
             self.update_table()
@@ -954,14 +1063,19 @@ class ModernApp:
         """Switch mode"""
         self.current_mode = mode_num
         mode_text = self.texts["mode_table"] if mode_num == 1 else self.texts["mode_text"]
-        self.lbl_mode.configure(text=f"{self.texts['current_mode']} {mode_text}")
+        if self.lbl_mode:
+            self.lbl_mode.configure(text=f"{self.texts['current_mode']} {mode_text}")
 
         if mode_num == 1:
-            self.btn_mode_table.configure(fg_color=self.current_colors["accent"])
-            self.btn_mode_text.configure(fg_color=self.current_colors["bg"])
+            if self.btn_mode_table:
+                self.btn_mode_table.configure(fg_color=self.current_colors["accent"])
+            if self.btn_mode_text:
+                self.btn_mode_text.configure(fg_color=self.current_colors["bg"])
         else:
-            self.btn_mode_table.configure(fg_color=self.current_colors["bg"])
-            self.btn_mode_text.configure(fg_color=self.current_colors["accent"])
+            if self.btn_mode_table:
+                self.btn_mode_table.configure(fg_color=self.current_colors["bg"])
+            if self.btn_mode_text:
+                self.btn_mode_text.configure(fg_color=self.current_colors["accent"])
 
         if update_ui and hasattr(self, 'current_data') and (self.current_data or self.aggregated_data):
             if mode_num == 0 and self.current_data:
@@ -980,9 +1094,10 @@ class ModernApp:
                 if var.get() != state:
                     var.set(state)
 
-            self.lbl_count.configure(text=self.texts["records_count"].format(
-                len(self.current_data), len(self.active_rows)
-            ))
+            if self.lbl_count:
+                self.lbl_count.configure(text=self.texts["records_count"].format(
+                    len(self.current_data), len(self.active_rows)
+                ))
 
     def invert_selection(self):
         """Invert selection (table mode only)"""
@@ -991,9 +1106,10 @@ class ModernApp:
                 var.set(not var.get())
 
             self.active_rows = [i for i, (_, var) in enumerate(self.checkboxes) if var.get()]
-            self.lbl_count.configure(text=self.texts["records_count"].format(
-                len(self.current_data), len(self.active_rows)
-            ))
+            if self.lbl_count:
+                self.lbl_count.configure(text=self.texts["records_count"].format(
+                    len(self.current_data), len(self.active_rows)
+                ))
 
     def load_file_from_path(self, file_path=None, update_ui=True):
         """Load file"""
@@ -1011,7 +1127,8 @@ class ModernApp:
             self.file_path = file_path
             sys_name = os.path.basename(file_path)
             for_name = sys_name if len(sys_name) < 30 else sys_name[:27] + '...'
-            self.lbl_file.configure(text=for_name, text_color=self.current_colors["accent"])
+            if self.lbl_file:
+                self.lbl_file.configure(text=for_name, text_color=self.current_colors["accent"])
 
             doc = Document(file_path)
             info = find_info_in_doc(doc, file_path)
@@ -1020,9 +1137,9 @@ class ModernApp:
             self.date2 = info.get("дата обращения")
             self.table2_data = info.get("таблица работ")
 
-            if info.get("номер заявки"):
+            if info.get("номер заявки") and self.entry_num:
                 self.entry_num.delete(0, ctk.END)
-            self.entry_num.insert(0, info["номер заявки"])
+                self.entry_num.insert(0, info["номер заявки"])
 
             loaded_mode = info.get("режим", 1)
             self.switch_mode(loaded_mode, update_ui=False)
@@ -1149,8 +1266,8 @@ class ModernApp:
                 messagebox.showwarning(self.texts["warning"], "No data to create document")
                 return
 
-            num = self.entry_num.get() or "ERROR_IN_NUM"
-            date = self.entry_date.get() or "ERROR_IN_DATE"
+            num = self.entry_num.get() if self.entry_num else "ERROR_IN_NUM"
+            date = self.entry_date.get() if self.entry_date else "ERROR_IN_DATE"
             table1_rows = len(active_data) + 1
 
             if self.current_template == 2:

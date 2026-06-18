@@ -6,7 +6,7 @@ from pathlib import Path
 COLORS = {
     "red": "#FF0032",      # Основной красный
     "cyan": "#74BAFF",       # Акцентный светло-синий
-    "black": "#000000",         # Темно-серый для фона
+    "black": "#1e1f22",         # Темно-серый для фона
     "white": "#FFFFFF",        # Светлый для текста на темном фоне
     "blue": "#1F87FF",      # Успех (синий)
     "gray": "#3F3F3F",         # Серый для неактивных элементов
@@ -35,11 +35,11 @@ if not FONT_PATH.exists():
 FONTS = {
     "title": (FONT_BOLD_PATH, 18),
     "subtitle": (FONT_BOLD_PATH, 14),
-    "body": (FONT_PATH, 12),
-    "small": (FONT_PATH, 10),
+    "body": (FONT_PATH, 14),
+    "small": (FONT_PATH, 12),
     "button": (FONT_BOLD_PATH, 13),
-    "table_header": (FONT_BOLD_PATH, 12),
-    "table_cell": (FONT_PATH, 11)
+    "table_header": (FONT_BOLD_PATH, 14),
+    "table_cell": (FONT_PATH, 12)
 }
 
 # Размеры и геометрия

@@ -165,45 +165,70 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
     # Пункт 2 - таблица объектов
     para2 = doc.add_paragraph()
     para2.paragraph_format.first_line_indent = Cm(1.25)
-    run2 = para2.add_run('2. Объект по адресу:')
+    run2 = para2.add_run('2. Объекты по адресу(ам):')
     run2.font.name = 'Times New Roman'
     run2.font.size = Pt(12)
 
     # Создание таблицы объектов
-    objects_data = table1_data
-    table = doc.add_table(rows=table1_rows, cols=5)
-    table.style = 'Table Grid'
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    if mode==1:
+        # Создание таблицы объектов
+        objects_data = table1_data
+        table = doc.add_table(rows=table1_rows, cols=5)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    # Заголовки таблицы
-    headers = ['порядковый номер', 'кол-во ПУ', 'тип ПУ', 'Адрес объекта', 'Примечания']
-    for i, header in enumerate(headers):
-        cell = table.rows[0].cells[i]
-        cell.text = ''
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run(header)
-        run.bold = True
-        run.font.name = 'Times New Roman'
-        run.font.size = Pt(10)
-
-    # Заполнение данных
-    for i, row_data in enumerate(objects_data):
-        for j, cell_text in enumerate(row_data):
-            cell = table.rows[i + 1].cells[j]
+        # Заголовки таблицы
+        headers = ['порядковый номер', 'кол-во ПУ', 'тип ПУ', 'Адрес объекта', 'Примечания']
+        for i, header in enumerate(headers):
+            cell = table.rows[0].cells[i]
             cell.text = ''
             p = cell.paragraphs[0]
-            run = p.add_run(str(cell_text))
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p.add_run(header)
+            run.bold = True
             run.font.name = 'Times New Roman'
             run.font.size = Pt(10)
 
-    # Настройка ширины колонок
-    widths = [Cm(1.24), Cm(1.41), Cm(1.59), Cm(6.1), Cm(7.58)]
-    for row in table.rows:
-        for idx, width in enumerate(widths):
-            row.cells[idx].width = width
+        # Заполнение данных
+        for i, row_data in enumerate(objects_data):
+            for j, cell_text in enumerate(row_data):
+                cell = table.rows[i + 1].cells[j]
+                cell.text = ''
+                p = cell.paragraphs[0]
+                run = p.add_run(str(cell_text))
+                run.font.name = 'Times New Roman'
+                run.font.size = Pt(10)
 
-    doc.add_paragraph()
+        # Настройка ширины колонок
+        widths = [Cm(1.24), Cm(1.41), Cm(1.59), Cm(6.1), Cm(7.58)]
+        for row in table.rows:
+            for idx, width in enumerate(widths):
+                row.cells[idx].width = width
+        doc.add_paragraph()
+
+    else:
+        objects_data = table1_data
+        # headers = ['порядковый номер', 'кол-во ПУ', 'тип ПУ', 'Адрес объекта', 'Примечания']
+        ppp = 1
+        adresses = set([x[3] for x in objects_data])
+        for adr in adresses:
+            para_ad = doc.add_paragraph()
+            para_ad.paragraph_format.first_line_indent = Cm(2)
+            dop = "; ".join(set([x[4] for x in objects_data if adr in x]))
+            ad_out = ". ".join([par.capitalize() for par in adr.split(". ")]).strip(" ").strip(".").strip(";").strip(",")
+            if ad_out.startswith("1."):
+                ad_out = ad_out[4:].lstrip(" ")
+            pu_n = [x[1] for x in objects_data if adr in x]
+            pu_t = [x[2] for x in objects_data if adr in x]
+            pu_p = []
+            for i in range(sum([int(adr == x[3]) for x in objects_data])):
+                pu_p.append(f'{pu_t[i]} ПУ - {pu_n[i]}')
+
+            run_ad = para_ad.add_run(f'2.{ppp}. {ad_out}. Установленные ПУ: {", ".join(pu_p)}. {dop.strip(" ").strip(".").strip(";").strip(",")}')
+            run_ad.font.name = 'Times New Roman'
+            run_ad.font.size = Pt(12)
+            ppp += 1
+
 
     type_counter = {"1ф": 0, "3ф ПР": 0, "3ф ПК": 0}
     for row in table1_data:
@@ -458,7 +483,7 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
     # Подписи
     cell_left_sign = sign_table.rows[1].cells[0]
     cell_left_sign.text = ''
-    for text_line in ['ПАО «МТС»\n', '', 'Ведущий специалист Группы Выпуска Реги ональных Счетов и Корреспонденции\n', '',
+    for text_line in ['ПАО «МТС»\n', '', 'Ведущий специалист группы выпуска региональных счетов и корреспонденции\n', '',
                       '____________________/ Ложкин М.М. /', '', 'м.п.']:
         if text_line:
             p = cell_left_sign.add_paragraph()
