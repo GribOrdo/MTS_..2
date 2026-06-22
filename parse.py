@@ -102,14 +102,14 @@ def find_info_in_doc(doc, path):
             el = full_l[i]
             if "работ:" in el.strip():
                 break
-            elif flag and any([x in el.lower() for x in ["г.", "п.", "о.", "1.", "с.",
+            elif flag and any([x in el.lower() for x in ["г.", "п.", "о.", "1.", "с.", "нсо",
                                                          "город", "посел", "област", "сел", "пгт"]]):
                 prep += [el.split()]
             elif "адрес" in el.strip().lower() and "объект" in el.strip().lower():
                 flag = True
-                if any([x in el.lower() for x in ["г.", "п.", "о.", "1.", "с.",
+                if any([x in el.lower() for x in ["г.", "п.", "о.", "с.", "нсо",
                                                   "город", "посел", "област", "сел", "пгт"]]):
-                    prep += [el.split(":")[1].strip().split()]
+                    prep += [el.split(":", 1)[1].strip().split()]
 
         tab_data = []    #
         ind_num = 0
