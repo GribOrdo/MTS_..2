@@ -8,13 +8,16 @@ from num2words import num2words
 
 WORK_DICT = {
     "1ф": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии однофазного",
-    "3ф ПР": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного непосредственного (прямого) включения",
+    "3ф ПР": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного"
+             "непосредственного (прямого) включения",
     "3ф ПК": "Электромонтажные и пусконаладочные работы по подключению счетчика электрической энергии трехфазного трансформаторного включения"
 }
 EQUIP_DICT = {
     "1ф": "Счетчик электрической энергии однофазный, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM",
-    "3ф ПР": "Счетчик электрической энергии трехфазный непосредственного (прямого) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.749.OG.QYUVLFZ NB02 SPds",
-    "3ф ПК": "Счетчик электрической энергии трехфазный трансформаторного (полукосвенного) включения, соответствующий требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.543.OAG.SYUVLFZ NB02 SPds"
+    "3ф ПР": "Счетчик электрической энергии трехфазный непосредственного (прямого) включения, соответствующий требованиям "
+             "ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.749.OG.QYUVLFZ NB02 SPds",
+    "3ф ПК": "Счетчик электрической энергии трехфазный трансформаторного (полукосвенного) включения, соответствующий "
+             "требованиям ПП РФ № 890 от 19.06.2020 г., NBIOT/GSM_CE307 R34.543.OAG.SYUVLFZ NB02 SPds"
 }
 PR_WK_DICT = {
     "1ф": "1764,71",
@@ -170,7 +173,7 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
     run2.font.size = Pt(12)
 
     # Создание таблицы объектов
-    if mode==1:
+    if mode == 1:
         # Создание таблицы объектов
         objects_data = table1_data
         table = doc.add_table(rows=table1_rows, cols=5)
@@ -205,7 +208,6 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
             for idx, width in enumerate(widths):
                 row.cells[idx].width = width
         doc.add_paragraph()
-
     else:
         objects_data = table1_data
         # headers = ['порядковый номер', 'кол-во ПУ', 'тип ПУ', 'Адрес объекта', 'Примечания']
@@ -228,7 +230,6 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
             run_ad.font.name = 'Times New Roman'
             run_ad.font.size = Pt(12)
             ppp += 1
-
 
     type_counter = {"1ф": 0, "3ф ПР": 0, "3ф ПК": 0}
     for row in table1_data:
@@ -292,7 +293,7 @@ def create_application_doc2(num, date1, date2, table1_rows, table1_data, table2_
 
                 work_values = [
                     str(table2_p),
-                    WORK_DICT[typ],
+                    str(row_data[1]),
                     str(row_data[2]),
                     str(type_counter[typ]),
                     price_to_show(price_per_unit),
