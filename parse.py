@@ -100,7 +100,7 @@ def find_info_in_doc(doc, path):
         full_l = full_text.split("\n")    #
         for i in range(len(full_l)):
             el = full_l[i]
-            if "работ:" in el.strip():
+            if "работ:" in el.strip().lower():
                 break
             elif flag and any([x in el.lower() for x in ["г.", "п.", "о.", "1.", "с.", "нсо",
                                                          "город", "посел", "област", "сел", "пгт"]]):
@@ -143,11 +143,12 @@ def find_info_in_doc(doc, path):
                         addit = " ".join(el[ind + 2:])
             if not adress:
                 adress = " ".join(el)
-
+            ind_num = 0
             for typ in list(type_counter.keys()):
                 if type_counter[typ]:
                     ind_num += 1
-                    row = table2_work.pop()
+                    ind_crat = ind_num % 3 - 1
+                    row = table2_work[ind_crat if ind_crat >= 0 else 0]
                     typ_py = typ
 
                     pu_num = row[3]
